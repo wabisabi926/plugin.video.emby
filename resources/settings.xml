@@ -2187,7 +2187,7 @@
             <group id="7" label="33645">
                 <setting label="30249" id="connectMsg" type="boolean" help="">
                     <level>2</level>
-                    <default>true</default>
+                    <default>false</default>
                     <control type="toggle"/>
                 </setting>
                 <setting label="30530" id="restartMsg" type="boolean" help="">
