@@ -1,3 +1,4 @@
+import json
 import xbmc
 import xbmcgui
 from helper import utils
@@ -618,7 +619,7 @@ def set_ListItem(item, ServerId, Path=None, ContentLookup=True, ContentSupported
         Properties['mediasourcescount'] = len(item['MediaSources'])
 
         for Index, MediaSource in enumerate(item['MediaSources']):
-            Properties.update({f"embyintrostartposticks{Index}": MediaSource['IntroStartPositionTicks'], f"embyintroendpositionticks{Index}": MediaSource['IntroEndPositionTicks'], f"embycreditspositionticks{Index}": MediaSource['CreditsPositionTicks'], f"embymediacourcename{Index}": MediaSource['Name'], f"embymediacourcesize{Index}": MediaSource['Size'], f"embymediacourcepath{Index}": MediaSource['Path'], f"embymediacourceid{Index}": MediaSource['Id']})
+            Properties.update({f"embyintrostartposticks{Index}": MediaSource['IntroStartPositionTicks'], f"embyintroendpositionticks{Index}": MediaSource['IntroEndPositionTicks'], f"embycreditspositionticks{Index}": MediaSource['CreditsPositionTicks'], f"embymediacourcename{Index}": MediaSource['Name'], f"embymediacourcesize{Index}": MediaSource['Size'], f"embymediacourcepath{Index}": MediaSource['Path'], f"embymediacourceid{Index}": MediaSource['Id'], f"embyindexmappingvideo{Index}": json.dumps(MediaSource['IndexMappingVideo']), f"embyindexmappingaudio{Index}": json.dumps(MediaSource['IndexMappingAudio']), f"embyindexmappingsubtitle{Index}": json.dumps(MediaSource['IndexMappingSubtitle'])})
 
         if IsVideo and item['MediaSources'][0] and 'KodiStreams' in item['MediaSources'][0] and item['MediaSources'][0]['KodiStreams']:
             for Stream in item['MediaSources'][0]['KodiStreams']['Video']:

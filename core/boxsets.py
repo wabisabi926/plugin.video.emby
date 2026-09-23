@@ -6,17 +6,17 @@ KodiTypeMapping = {"Movie": "movie", "Series": "tvshow", "MusicVideo": "musicvid
 
 
 class BoxSets:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
-        self.TagObject = tag.Tag(self.EmbyServer, self.SQLs)
+        self.TagObject = tag.Tag(Library, SQLs)
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs
         self.TagObject.update_SQLs(self.SQLs)
 
     def change(self, Item, IncrementalSync):
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "BoxSet"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "BoxSet"):
             return False
 
         BoxSetKodiParentIds = ()
@@ -25,7 +25,7 @@ class BoxSets:
         # Query assigned content for collections
         ContentsAssignedToBoxset = []
 
-        for ContentAssignedToBoxset in self.EmbyServer.API.get_Items(Item['Id'], ("Audio", "Video", "Movie", "Episode", "MusicVideo", "Series"), True, {'GroupItemsIntoCollections': True, "Fields": "PresentationUniqueKey"}, "", None, False):
+        for ContentAssignedToBoxset in self.Library.API.get_Items(Item['Id'], ("Audio", "Video", "Movie", "Episode", "MusicVideo", "Series"), True, {'GroupItemsIntoCollections': True, "Fields": "PresentationUniqueKey"}, "", None, False):
             ContentsAssignedToBoxset.append(ContentAssignedToBoxset)
 
         # Add new collection tag
@@ -113,7 +113,7 @@ class BoxSets:
             elif utils.DebugLog:
                 xbmc.log(f"EMBY.core.boxsets (DEBUG): DELETE from boxset [{Item['Id']}] {Item['KodiItemId']} {Item['Name']}: {KodiContentId}", 1) # LOGDEBUG
 
-        common.set_KodiArtwork(Item, self.EmbyServer.ServerData['ServerId'], False)
+        common.set_KodiArtwork(Item, self.Library.ServerData['ServerId'], False)
 
         if IncrementalSync and utils.ArtworkCacheIncremental:
             common.cache_artwork(Item['KodiArtwork'])
@@ -183,7 +183,7 @@ class BoxSets:
         if IsFavorite and not Item['KodiArtwork']['favourite'] or 'Name' not in Item:
             _, Item['KodiArtwork']['favourite'], Item['Name'] = self.SQLs["video"].get_favoriteData(None, Item['KodiItemId'], "set")
 
-        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Boxset", "Set", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://movies/sets/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Boxset", "Set", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://movies/sets/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
 
         if utils.BoxSetsToTags:
             EmbyTagId = f"{utils.MappingIds['Tag']}{Item['Id']}"

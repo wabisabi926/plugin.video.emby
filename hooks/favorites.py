@@ -14,14 +14,21 @@ def monitor_Favorites():
     FavoriteUpdatedByEmby = False
     FavoritesCached = get_Favorites()
     FavoriteTimestamp = 0
+    FavFileExits = False
 
     while True:
         if utils.sleep(0.5):
             if utils.DebugLog: xbmc.log("EMBY.hooks.favorites (DEBUG): THREAD: ---<[ Kodi favorites ]", 1) # LOGDEBUG
             return
 
-        Stats = xbmcvfs.Stat(KodiFavFile)
-        TimestampReadOut = Stats.st_mtime()
+        if not FavFileExits and xbmcvfs.exists(KodiFavFile):
+            FavFileExits = True
+
+        if FavFileExits:
+            Stats = xbmcvfs.Stat(KodiFavFile)
+            TimestampReadOut = Stats.st_mtime()
+        else:
+            continue
 
         # Skip favorite update
         if FavoriteUpdatedByEmby:
@@ -56,6 +63,7 @@ def monitor_Favorites():
 
                     for FavoriteChanged in FavoritesChanged:
                         EmbyType = ""
+                        ContentType = ""
                         EmbyId = ""
                         ServerId = ""
                         ImageUrlFromDB = ""
@@ -76,68 +84,90 @@ def monitor_Favorites():
                                 KodiItemId = videodb.get_seasonid_by_showid_number(Temp[4], Temp[5]) # Temp[4] = KodiTVShowId, Temp[5] = SeasonNumber
                                 dbio.DBCloseRO("video", "Favorites")
                                 EmbyType = "Season"
+                                ContentType = "video"
                             else:
                                 KodiItemId = Temp[4]
                                 EmbyType = "Series"
+                                ContentType = "video"
                         elif Path.startswith("videodb://movies/sets/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[4]
                             EmbyType = "BoxSet"
+                            ContentType = "video"
                         elif Path.startswith("videodb://movies/genres/") or Path.startswith("videodb://tvshows/genres/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[4]
                             EmbyType = "Genre"
-                        elif Path.startswith("videodb://movies/tags/") or Path.startswith("videodb://tvshows/tags/") or Path.startswith("videodb://musicvideos/tags/"):
-                            Temp = Path.split("/")
-                            KodiItemId = Temp[4]
-                            EmbyType = "Tag"
+                            ContentType = "video"
                         elif Path.startswith("videodb://movies/actors/") or Path.startswith("videodb://tvshows/actors/") or Path.startswith("videodb://musicvideos/actors/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[4]
                             EmbyType = "Person"
+                            ContentType = "video"
+                        elif Path.startswith("videodb://movies/tags/") or Path.startswith("videodb://tvshows/tags/") or Path.startswith("videodb://musicvideos/tags/"):
+                            Temp = Path.split("/")
+                            KodiItemId = Temp[4]
+                            EmbyType = "Tag"
+                            ContentType = "video"
                         elif Path.startswith("videodb://movies/studios/") or Path.startswith("videodb://tvshows/studios/") or Path.startswith("videodb://musicvideos/studios/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[4]
                             EmbyType = "Studio"
+                            ContentType = "video"
                         elif Path.startswith("special://profile/playlists/video/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[5][:-4]
-                            EmbyType = "PlaylistVideo"
+                            EmbyType = "Playlist"
+                            ContentType = "video"
                         elif Path.startswith("special://profile/playlists/music/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[5][:-4]
-                            EmbyType = "PlaylistAudio"
+                            EmbyType = "Playlist"
+                            ContentType = "music"
                         elif Path.startswith("plugin://plugin.service.emby-next-gen/?mode=playlist&mediatype=video"):
                             Temp = Path.split("id=")
                             KodiItemId = Temp[-1]
-                            EmbyType = "PlaylistVideo"
+                            EmbyType = "Playlist"
+                            ContentType = "video"
                         elif Path.startswith("plugin://plugin.service.emby-next-gen/?mode=playlist&mediatype=audio"):
                             Temp = Path.split("id=")
                             KodiItemId = Temp[-1]
-                            EmbyType = "PlaylistAudio"
+                            EmbyType = "Playlist"
+                            ContentType = "music"
                         elif Path.startswith("musicdb://genres/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[3]
                             EmbyType = "MusicGenre"
+                            ContentType = "music"
                         elif Path.startswith("videodb://musicvideos/genres/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[4]
                             EmbyType = "MusicGenre"
+                            ContentType = "video"
+                        elif Path.startswith("videodb://musicvideos/artists/"):
+                            Temp = Path.split("/")
+                            KodiItemId = Temp[4]
+                            EmbyType = "MusicArtist"
+                            ContentType = "video"
                         elif Path.startswith("musicdb://artists/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[3]
                             EmbyType = "MusicArtist"
+                            ContentType = "music"
                         elif Path.startswith("musicdb://albums/"):
                             Temp = Path.split("/")
                             KodiItemId = Temp[3]
                             EmbyType = "MusicAlbum"
+                            ContentType = "music"
                         elif Path.startswith("library://music/emby_playlistsaudio_Playlists/"):
-                            EmbyType = "PlaylistAudio"
+                            EmbyType = "Playlist"
+                            ContentType = "music"
                             Temp = Path.replace("library://music/emby_playlistsaudio_Playlists/", "").replace(".xml", "").replace("/", "").split("_")
                             ServerId = Temp[0]
                             EmbyId = Temp[1]
                         elif Path.startswith("library://video/emby_playlistsvideo_Playlists/"):
-                            EmbyType = "PlaylistVideo"
+                            EmbyType = "Playlist"
+                            ContentType = "video"
                             Temp = Path.replace("library://video/emby_playlistsvideo_Playlists/", "").replace(".xml", "").replace("/", "").split("_")
                             ServerId = Temp[0]
                             EmbyId = Temp[1]
@@ -147,6 +177,12 @@ def monitor_Favorites():
                         # get ServerId by thumbnail's metadata
                         if FavoriteChanged.get("thumbnail", "").startswith("http://127.0.0.1:57342/"): # by picure url metadata
                             ValidImage = FavoriteChanged["thumbnail"]
+                            FolderIds = ValidImage.split("/")
+
+                            if len(FolderIds) >= 4:
+                                ServerId = FolderIds[4]
+                        elif FavoriteChanged.get("thumbnail", "").startswith("image://emby@http%3A%2F%2F127.0.0.1%3A57342") or FavoriteChanged.get("thumbnail", "").startswith("image://epg@http%3A%2F%2F127.0.0.1%3A57342"): # by picure url metadata
+                            ValidImage = utils.image_url_decode(FavoriteChanged["thumbnail"])
                             FolderIds = ValidImage.split("/")
 
                             if len(FolderIds) >= 4:
@@ -168,12 +204,12 @@ def monitor_Favorites():
                             else:
                                 if ServerId in utils.EmbyServers:
                                     embydb = dbio.DBOpenRO(ServerId, "Favorites subcontent metadata 1")
-                                    EmbyId, KodiItemIdFromDB, ImageUrlFromDB = embydb.get_EmbyId_KodiId_ImageUrl_by_KodiId_EmbyType(KodiItemId, EmbyType)
+                                    EmbyId, KodiItemIdFromDB, ImageUrlFromDB, LibraryIds = embydb.get_EmbyId_KodiId_ImageUrl_by_KodiId_EmbyType(KodiItemId, EmbyType, ContentType)
                                     dbio.DBCloseRO(ServerId, "Favorites subcontent metadata 1")
                                 else:
                                     for ServerId in utils.EmbyServers:
                                         embydb = dbio.DBOpenRO(ServerId, "Favorites subcontent metadata 2")
-                                        EmbyId, KodiItemIdFromDB, ImageUrlFromDB = embydb.get_EmbyId_KodiId_ImageUrl_by_KodiId_EmbyType(KodiItemId, EmbyType)
+                                        EmbyId, KodiItemIdFromDB, ImageUrlFromDB, LibraryIds = embydb.get_EmbyId_KodiId_ImageUrl_by_KodiId_EmbyType(KodiItemId, EmbyType, ContentType)
                                         dbio.DBCloseRO(ServerId, "Favorites subcontent metadata 2")
 
                                         if EmbyId:
@@ -211,34 +247,24 @@ def monitor_Favorites():
                                 else:
                                     ImageUrlUpdated = FavoriteChanged["thumbnail"]
 
-                                if EmbyType == "MusicGenre":
-                                    MusicGenreByMusicVideo = Path.startswith("videodb://musicvideos/genres/")
-                                    MusicGenreByAudio = Path.startswith("musicdb://genres/")
+                                if EmbyType == "MusicGenre" and ContentType == "music":
+                                    KodiItemIds = KodiItemIdFromDB.split(";")
+                                    send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Genre", "Songs", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "music"})
+                                    videodb = dbio.DBOpenRO("video", "Favorites change musicgenre (subcontent)")
+                                    _, hasMusicVideos, _, _ = videodb.get_Genre_Name_hasMusicVideos_hasMovies_hasTVShows(KodiItemIds[1])
+                                    dbio.DBCloseRO("video", "Favorites change musicgenre (subcontent)")
 
-                                    # Update artwork for existing item
-                                    if MusicGenreByMusicVideo:
-                                        send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Genre", "Musicvideos", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "videos"})
-                                    elif MusicGenreByAudio:
-                                        send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Genre", "Songs", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "music"})
+                                    if hasMusicVideos:
+                                        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Musicvideos", EmbyId, ServerId, ImageUrlUpdated), True, f"videodb://musicvideos/genres/{KodiItemIds[1]}/", FavoriteChanged["title"], "window", 10025),))
+                                elif EmbyType == "MusicGenre" and ContentType == "video":
+                                    KodiItemIds = KodiItemIdFromDB.split(";")
+                                    send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Genre", "Musicvideos", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "videos"})
+                                    musicdb = dbio.DBOpenRO("music", "Favorites change musicgenre (subcontent)")
+                                    _, hasSongs = musicdb.get_Genre_Name_hasSongs(KodiItemIds[0])
+                                    dbio.DBCloseRO("music", "Favorites change musicgenre (subcontent)")
 
-                                    # Add additional favorites for linked subcontent
-                                    if KodiItemIdFromDB:
-                                        KodiItemIdFromDB = KodiItemIdFromDB.split(";")
-
-                                        if MusicGenreByMusicVideo:
-                                            musicdb = dbio.DBOpenRO("music", "Favorites change musicgenre (subcontent)")
-                                            _, hasSongs = musicdb.get_Genre_Name_hasSongs(KodiItemIdFromDB[1])
-                                            dbio.DBCloseRO("music", "Favorites change musicgenre (subcontent)")
-
-                                            if hasSongs:
-                                                utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Songs", EmbyId, ServerId, ImageUrlUpdated), True, f"musicdb://genres/{KodiItemIdFromDB[1]}/", FavoriteChanged["title"], "window", 10502),))
-                                        else:
-                                            videodb = dbio.DBOpenRO("video", "Favorites change musicgenre (subcontent)")
-                                            _, hasMusicVideos, _, _ = videodb.get_Genre_Name_hasMusicVideos_hasMovies_hasTVShows(KodiItemIdFromDB[0])
-                                            dbio.DBCloseRO("video", "Favorites change musicgenre (subcontent)")
-
-                                            if hasMusicVideos:
-                                                utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Musicvideos", EmbyId, ServerId, ImageUrlUpdated), True, f"videodb://musicvideos/genres/{KodiItemIdFromDB[0]}/", FavoriteChanged["title"], "window", 10025),))
+                                    if hasSongs:
+                                        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Songs", EmbyId, ServerId, ImageUrlUpdated), True, f"musicdb://genres/{KodiItemIds[0]}/", FavoriteChanged["title"], "window", 10502),))
                                 elif EmbyType == "Tag":
                                     videodb = dbio.DBOpenRO("video", "Favorites change tag (subcontent)")
                                     _, hasMusicVideos, hasMovies, hasTVShows = videodb.get_Tag_Name(KodiItemId)
@@ -379,29 +405,59 @@ def monitor_Favorites():
                                 elif EmbyType == "Season":
                                     send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Season", "TV Show", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "videos"})
                                 elif EmbyType == "MusicArtist":
+                                    LibraryIds = common.get_Ids_MultiContent(LibraryIds)
+                                    KodiItemIds = common.get_Ids_MultiContent(KodiItemIdFromDB)
+
+                                    if KodiItemIds[0]:
+                                        for Index, KodiItemIdAudio in enumerate(KodiItemIds[0]):
+                                            if str(KodiItemId) != KodiItemIdAudio and LibraryIds[0][Index] in utils.EmbyServers[ServerId].library.LibrarySyncedContent and "Playlist" not in utils.EmbyServers[ServerId].library.LibrarySyncedContent[LibraryIds[0][Index]]: # Skip playlist subcontent, and KodiId is self
+                                                utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Artist", "Songs", EmbyId, ServerId, ImageUrlUpdated), True, f"musicdb://artists/{KodiItemIdAudio}/", FavoriteChanged["title"], "window", 10502),))
+
+                                    if KodiItemIds[1]:
+                                        for Index, KodiItemIdVideo in enumerate(KodiItemIds[1]):
+                                            if str(KodiItemId) != KodiItemIdVideo and LibraryIds[1][Index] in utils.EmbyServers[ServerId].library.LibrarySyncedContent and "Playlist" not in utils.EmbyServers[ServerId].library.LibrarySyncedContent[LibraryIds[1][Index]]: # Skip playlist subcontent
+                                                utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Artist", "Musicvideos", EmbyId, ServerId, ImageUrlUpdated), True, f"videodb://musicvideos/artists/{KodiItemIdVideo}/", FavoriteChanged["title"], "window", 10025),))
+
                                     send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Artist", "Songs", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "music"})
                                 elif EmbyType == "MusicAlbum":
                                     send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Album", "Songs", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "music"})
-                                elif EmbyType == "PlaylistVideo":
+                                elif EmbyType == "Playlist" and ContentType == "video":
                                     send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Playlist", "Video", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "videos"})
-                                elif EmbyType == "PlaylistAudio":
+                                elif EmbyType == "Playlist" and ContentType == "music":
                                     send_favorite({"type": FavoriteChanged["type"], "title": FavoriteChanged["title"] , "thumbnail": common.set_Favorites_Artwork_Overlay("Playlist", "Audio", EmbyId, ServerId, ImageUrlUpdated), "windowparameter": FavoriteChanged["windowparameter"], "window": "music"})
                         else: # favorite removed
                             if not isPath:
                                 # remove additional existing favorite records for linked sub-content
-                                if EmbyType == "MusicGenre":
-                                    embydb = dbio.DBOpenRO(ServerId, "Favorites subcontent metadata MusicGenre")
-                                    KodiIds = embydb.get_KodiId_by_EmbyId_EmbyType(EmbyId, "MusicGenre")
-                                    dbio.DBCloseRO(ServerId, "Favorites subcontent metadata MusicGenre")
+                                if EmbyType == "MusicArtist":
+                                    KodiItemIds = KodiItemIdFromDB.split(";")
+
+                                    if KodiItemIds[0]:
+                                        KodiItemIdsAudio = KodiItemIds[0].split(",")
+
+                                        for KodiItemIdAudio in KodiItemIdsAudio:
+                                            delete_favorite(None, FavoritesCurrent, f"musicdb://artists/{KodiItemIdAudio}/")
+
+                                    if KodiItemIds[1]:
+                                        KodiItemIdsVideo = KodiItemIds[1].split(",")
+
+                                        for KodiItemIdVideo in KodiItemIdsVideo:
+                                            delete_favorite(None, FavoritesCurrent, f"videodb://musicvideos/artists/{KodiItemIdVideo}/")
+                                elif EmbyType == "MusicGenre":
+                                    if KodiItemIdFromDB:
+                                        KodiIds = KodiItemIdFromDB
+                                    else:
+                                        embydb = dbio.DBOpenRO(ServerId, "Favorites subcontent metadata MusicGenre")
+                                        KodiIds = embydb.get_KodiId_by_EmbyId_EmbyType(EmbyId, "MusicGenre")
+                                        dbio.DBCloseRO(ServerId, "Favorites subcontent metadata MusicGenre")
 
                                     if KodiIds:
                                         KodiIds = KodiIds.split(";")
 
-                                        if KodiIds[1]:
-                                            delete_favorite(None, FavoritesCurrent, f"musicdb://genres/{KodiIds[1]}/")
-
                                         if KodiIds[0]:
-                                            delete_favorite(None, FavoritesCurrent, f"videodb://musicvideos/genres/{KodiIds[0]}/")
+                                            delete_favorite(None, FavoritesCurrent, f"musicdb://genres/{KodiIds[0]}/")
+
+                                        if KodiIds[1]:
+                                            delete_favorite(None, FavoritesCurrent, f"videodb://musicvideos/genres/{KodiIds[1]}/")
                                 elif EmbyType == "Tag":
                                     delete_favorite(None, FavoritesCurrent, f"videodb://movies/tags/{KodiItemId}/")
                                     delete_favorite(None, FavoritesCurrent, f"videodb://musicvideos/tags/{KodiItemId}/")
@@ -448,7 +504,7 @@ def monitor_Favorites():
             FavoritesCached = get_Favorites()
 
 def get_Favorites():
-    Result = utils.SendJson('{"jsonrpc":"2.0", "method":"Favourites.GetFavourites", "params":{"properties":["windowparameter", "path", "thumbnail", "window"]}, "id": 1}').get("result", {})
+    Result = utils.SendJson("Favourites.GetFavourites", '{"properties":["windowparameter", "path", "thumbnail", "window"]}', False).get("result", {})
 
     if Result:
         Favorites = Result.get("favourites", [])
@@ -538,20 +594,12 @@ def update_favorite(Favorite, Path, ImageUrl):
 def send_favorite(Favorite):
     global FavoriteUpdatedByEmby
     FavoriteUpdatedByEmby = True
+    FavoriteTitle = Favorite["title"].replace('"', '\\"')
 
     if 'path' in Favorite:
-        utils.SendJson(f'{{"jsonrpc":"2.0", "method":"Favourites.AddFavourite", "params":{{"type":"{Favorite["type"]}", "title":"{Favorite["title"]}", "thumbnail":"{Favorite["thumbnail"]}", "path":"{Favorite["path"]}"}}, "id": 1}}')
+        utils.SendJson("Favourites.AddFavourite", f'{{"type":"{Favorite["type"]}", "title":"{FavoriteTitle}", "thumbnail":"{Favorite["thumbnail"]}", "path":"{Favorite["path"]}"}}', False)
     else:
-        utils.SendJson(f'{{"jsonrpc":"2.0", "method":"Favourites.AddFavourite", "params":{{"type":"{Favorite["type"]}", "title":"{Favorite["title"]}", "thumbnail":"{Favorite["thumbnail"]}", "windowparameter":"{Favorite["windowparameter"]}", "window":"{Favorite["window"]}"}}, "id": 1}}')
-
-def set_Favorite_Emby_Media(Path, isFavorite):
-    if Path.startswith("dav://127.0.0.1:57342/") or Path.startswith("http://127.0.0.1:57342/") or Path.startswith("/emby_addon_mode/"):
-        Path = Path.replace("dav://127.0.0.1:57342/", "").replace("http://127.0.0.1:57342/", "").replace("/emby_addon_mode/", "")
-        ServerId = Path.split("/")[1]
-        EmbyId = Path[Path.rfind("/"):].split("-")[1]
-        utils.ItemSkipUpdate.append(str(EmbyId))
-        if utils.DebugLog: xbmc.log(f"EMBY.hooks.favorites (DEBUG): ItemSkipUpdate: {utils.ItemSkipUpdate}", 1) # LOGDEBUG
-        utils.EmbyServers[ServerId].API.favorite(EmbyId, isFavorite)
+        utils.SendJson("Favourites.AddFavourite", f'{{"type":"{Favorite["type"]}", "title":"{FavoriteTitle}", "thumbnail":"{Favorite["thumbnail"]}", "windowparameter":"{Favorite["windowparameter"]}", "window":"{Favorite["window"]}"}}', False)
 
 def emby_change_Favorite(): # Threaded / queued
     if utils.DebugLog: xbmc.log("EMBY.hooks.favorites (DEBUG): THREAD: --->[ Kodi favorites mods ]", 1) # LOGDEBUG
@@ -621,35 +669,35 @@ def set_Favorites(Enabled):
                 send_favorite(FavoritesCurrent["Favorites"][Index])
     else:
         for EmbyServer in list(utils.EmbyServers.values()):
-            update_Audio(EmbyServer)
-            update_MusicAlbum(EmbyServer)
-            update_Video(EmbyServer)
-            update_MusicVideo(EmbyServer)
-            update_Movie(EmbyServer)
-            update_Episode(EmbyServer)
-            update_Series(EmbyServer)
-            update_Season(EmbyServer)
-            update_Playlist(EmbyServer)
-            update_BoxSet(EmbyServer)
-            update_Genre(EmbyServer)
-            update_Studio(EmbyServer)
-            update_Tag(EmbyServer)
-            update_MusicGenre(EmbyServer)
-            update_Person(EmbyServer)
-            update_MusicArtist(EmbyServer)
+            update_Audio(EmbyServer.library)
+            update_MusicAlbum(EmbyServer.library)
+            update_Video(EmbyServer.library)
+            update_MusicVideo(EmbyServer.library)
+            update_Movie(EmbyServer.library)
+            update_Episode(EmbyServer.library)
+            update_Series(EmbyServer.library)
+            update_Season(EmbyServer.library)
+            update_Playlist(EmbyServer.library)
+            update_BoxSet(EmbyServer.library)
+            update_Genre(EmbyServer.library)
+            update_Studio(EmbyServer.library)
+            update_Tag(EmbyServer.library)
+            update_MusicGenre(EmbyServer.library)
+            update_Person(EmbyServer.library)
+            update_MusicArtist(EmbyServer.library)
 
-def update_Audio(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Audio")
+def update_Audio(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Audio")
     AudioInfos = embydb.get_FavoriteInfos("Audio") # EmbyFavourite, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Audio")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Audio")
     SQLs = {"music": dbio.DBOpenRO("music", "update_Audio")}
     utils.create_ProgressBar("update_Audio", utils.Translate(33199), utils.Translate(33844))
-    AudioObject = audio.Audio(EmbyServer, SQLs)
+    AudioObject = audio.Audio(Library, SQLs)
     RecordsPercent = len(AudioInfos) / 100
 
     for Index, AudioInfo in enumerate(AudioInfos):
         if AudioInfo[0]:
-            AudioObject.set_favorite(AudioInfo[0], {"KodiItemId": AudioInfo[1], "Id": AudioInfo[2]})
+            AudioObject.set_favorite(AudioInfo[0], {"KodiItemId": AudioInfo[1], "Id": AudioInfo[2], "LibraryIds": AudioInfo[3]})
 
         utils.update_ProgressBar("update_Audio", Index / RecordsPercent, utils.Translate(33844), str(AudioInfo[1]))
 
@@ -657,18 +705,18 @@ def update_Audio(EmbyServer):
     dbio.DBCloseRO("music", "update_Audio")
     utils.close_ProgressBar("update_Audio")
 
-def update_MusicAlbum(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_MusicAlbum")
+def update_MusicAlbum(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_MusicAlbum")
     MusicAlbumInfos = embydb.get_FavoriteInfos("MusicAlbum") # EmbyFavourite, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_MusicAlbum")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_MusicAlbum")
     SQLs = {"music": dbio.DBOpenRO("music", "update_MusicAlbum")}
     utils.create_ProgressBar("update_MusicAlbum", utils.Translate(33199), utils.Translate(33845))
-    MusicAlbumObject = musicalbum.MusicAlbum(EmbyServer, SQLs)
+    MusicAlbumObject = musicalbum.MusicAlbum(Library, SQLs)
     RecordsPercent = len(MusicAlbumInfos) / 100
 
     for Index, MusicAlbumInfo in enumerate(MusicAlbumInfos):
         if MusicAlbumInfo[0]:
-            MusicAlbumObject.set_favorite(MusicAlbumInfo[0], {"KodiItemId": MusicAlbumInfo[1], "Id": MusicAlbumInfo[2]})
+            MusicAlbumObject.set_favorite(MusicAlbumInfo[0], {"KodiItemId": MusicAlbumInfo[1], "Id": MusicAlbumInfo[2], "LibraryIds": MusicAlbumInfo[3]})
 
         utils.update_ProgressBar("update_MusicAlbum", Index / RecordsPercent, utils.Translate(33845), str(MusicAlbumInfo[1]))
 
@@ -676,13 +724,13 @@ def update_MusicAlbum(EmbyServer):
     dbio.DBCloseRO("music", "update_MusicAlbum")
     utils.close_ProgressBar("update_MusicAlbum")
 
-def update_Video(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Video")
+def update_Video(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Video")
     VideoInfos = embydb.get_FavoriteInfos("Video") # EmbyFavourite, KodiFileId, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Video")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Video")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Video")}
     utils.create_ProgressBar("update_Video", utils.Translate(33199), utils.Translate(33846))
-    VideoObject = videos.Videos(EmbyServer, SQLs)
+    VideoObject = videos.Videos(Library, SQLs)
     RecordsPercent = len(VideoInfos) / 100
 
     for Index, VideoInfo in enumerate(VideoInfos):
@@ -695,19 +743,19 @@ def update_Video(EmbyServer):
     dbio.DBCloseRO("video", "update_Video")
     utils.close_ProgressBar("update_Video")
 
-def update_MusicVideo(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_MusicVideo")
+def update_MusicVideo(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_MusicVideo")
     MusicVideoInfos = embydb.get_FavoriteInfos("MusicVideo") # EmbyFavourite, KodiFileId, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_MusicVideo")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_MusicVideo")
     SQLs = {"video": dbio.DBOpenRO("video", "update_MusicVideo")}
 
     utils.create_ProgressBar("update_MusicVideo", utils.Translate(33199), utils.Translate(33847))
-    MusicVideoObject = musicvideo.MusicVideo(EmbyServer, SQLs)
+    MusicVideoObject = musicvideo.MusicVideo(Library, SQLs)
     RecordsPercent = len(MusicVideoInfos) / 100
 
     for Index, MusicVideoInfo in enumerate(MusicVideoInfos):
         if MusicVideoInfo[0]:
-            MusicVideoObject.set_favorite(MusicVideoInfo[0], {"KodiItemId": MusicVideoInfo[2], "Id": MusicVideoInfo[3], "KodiFileId": MusicVideoInfo[1]})
+            MusicVideoObject.set_favorite(MusicVideoInfo[0], {"KodiItemId": MusicVideoInfo[2], "Id": MusicVideoInfo[3], "KodiFileId": MusicVideoInfo[1], "LibraryIds": MusicVideoInfo[4]})
 
         utils.update_ProgressBar("update_MusicVideo", Index / RecordsPercent, utils.Translate(33847), str(MusicVideoInfo[1]))
 
@@ -715,13 +763,13 @@ def update_MusicVideo(EmbyServer):
     dbio.DBCloseRO("video", "update_MusicVideo")
     utils.close_ProgressBar("update_MusicVideo")
 
-def update_BoxSet(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_BoxSet")
+def update_BoxSet(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_BoxSet")
     BoxSetInfos = embydb.get_FavoriteInfos("BoxSet") # EmbyFavourite, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_BoxSet")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_BoxSet")
     SQLs = {"video": dbio.DBOpenRO("video", "update_BoxSet")}
     utils.create_ProgressBar("update_BoxSet", utils.Translate(33199), utils.Translate(33848))
-    BoxSetObject = boxsets.BoxSets(EmbyServer, SQLs)
+    BoxSetObject = boxsets.BoxSets(Library, SQLs)
     RecordsPercent = len(BoxSetInfos) / 100
 
     for Index, BoxSetInfo in enumerate(BoxSetInfos):
@@ -734,13 +782,13 @@ def update_BoxSet(EmbyServer):
     dbio.DBCloseRO("video", "update_BoxSet")
     utils.close_ProgressBar("update_BoxSet")
 
-def update_Series(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Series")
+def update_Series(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Series")
     SeriesInfos = embydb.get_FavoriteInfos("Series") # EmbyFavourite, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Series")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Series")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Series")}
     utils.create_ProgressBar("update_Series", utils.Translate(33199), utils.Translate(33849))
-    SeriesObject = series.Series(EmbyServer, SQLs)
+    SeriesObject = series.Series(Library, SQLs)
     RecordsPercent = len(SeriesInfos) / 100
 
     for Index, SeriesInfo in enumerate(SeriesInfos):
@@ -753,13 +801,13 @@ def update_Series(EmbyServer):
     dbio.DBCloseRO("video", "update_Series")
     utils.close_ProgressBar("update_Series")
 
-def update_Season(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Season")
+def update_Season(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Season")
     SeasonInfos = embydb.get_FavoriteInfos("Season") # EmbyFavourite, KodiId, KodiParentId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Season")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Season")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Season")}
     utils.create_ProgressBar("update_Season", utils.Translate(33199), utils.Translate(33850))
-    SeasonObject = season.Season(EmbyServer, SQLs)
+    SeasonObject = season.Season(Library, SQLs)
     RecordsPercent = len(SeasonInfos) / 100
 
     for Index, SeasonInfo in enumerate(SeasonInfos):
@@ -772,12 +820,12 @@ def update_Season(EmbyServer):
     dbio.DBCloseRO("video", "update_Season")
     utils.close_ProgressBar("update_Season")
 
-def update_Playlist(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Playlist")
+def update_Playlist(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Playlist")
     PlaylistInfo = embydb.get_FavoriteInfos("Playlist") # EmbyFavourite, KodiId, EmbyArtwork, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Playlist")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Playlist")
     utils.create_ProgressBar("update_Playlist", utils.Translate(33199), utils.Translate(33851))
-    PlaylistObject = playlist.Playlist(EmbyServer, {})
+    PlaylistObject = playlist.Playlist(Library, {})
     RecordsPercent = len(PlaylistInfo) / 100
 
     for Index, PlaylistInfo in enumerate(PlaylistInfo):
@@ -789,13 +837,13 @@ def update_Playlist(EmbyServer):
     del PlaylistObject
     utils.close_ProgressBar("update_Playlist")
 
-def update_Episode(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Episode")
+def update_Episode(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Episode")
     EpisodeInfos = embydb.get_FavoriteInfos("Episode") # EmbyFavourite, KodiFileId, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Episode")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Episode")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Episode")}
     utils.create_ProgressBar("update_Episode", utils.Translate(33199), utils.Translate(33852))
-    EpisodeObject = episode.Episode(EmbyServer, SQLs)
+    EpisodeObject = episode.Episode(Library, SQLs)
     RecordsPercent = len(EpisodeInfos) / 100
 
     for Index, EpisodeInfo in enumerate(EpisodeInfos):
@@ -808,13 +856,13 @@ def update_Episode(EmbyServer):
     dbio.DBCloseRO("video", "update_Episode")
     utils.close_ProgressBar("update_Episode")
 
-def update_Movie(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Movie")
+def update_Movie(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Movie")
     MoviesInfos = embydb.get_FavoriteInfos("Movie") # EmbyFavourite, KodiFileId, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Movie")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Movie")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Movie")}
     utils.create_ProgressBar("update_Movie", utils.Translate(33199), utils.Translate(33853))
-    MovieObject = movies.Movies(EmbyServer, SQLs)
+    MovieObject = movies.Movies(Library, SQLs)
     RecordsPercent = len(MoviesInfos) / 100
 
     for Index, MovieInfo in enumerate(MoviesInfos):
@@ -827,13 +875,13 @@ def update_Movie(EmbyServer):
     dbio.DBCloseRO("video", "update_Movie")
     utils.close_ProgressBar("update_Movie")
 
-def update_Genre(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Genre")
+def update_Genre(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Genre")
     GenresInfos = embydb.get_FavoriteInfos("Genre") # EmbyFavourite, KodiId, EmbyArtwork, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Genre")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Genre")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Genre")}
     utils.create_ProgressBar("update_Genre", utils.Translate(33199), utils.Translate(33854))
-    GenreObject = genre.Genre(EmbyServer, SQLs)
+    GenreObject = genre.Genre(Library, SQLs)
     RecordsPercent = len(GenresInfos) / 100
 
     for Index, GenreInfo in enumerate(GenresInfos):
@@ -846,13 +894,13 @@ def update_Genre(EmbyServer):
     dbio.DBCloseRO("video", "update_Genre")
     utils.close_ProgressBar("update_Genre")
 
-def update_Studio(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Studio")
+def update_Studio(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Studio")
     StudioInfos = embydb.get_FavoriteInfos("Studio") # EmbyFavourite, KodiId, EmbyArtwork, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Studio")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Studio")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Studio")}
     utils.create_ProgressBar("update_Studio", utils.Translate(33199), utils.Translate(33855))
-    StudioObject = studio.Studio(EmbyServer, SQLs)
+    StudioObject = studio.Studio(Library, SQLs)
     RecordsPercent = len(StudioInfos) / 100
 
     for Index, StudioInfo in enumerate(StudioInfos):
@@ -865,13 +913,13 @@ def update_Studio(EmbyServer):
     dbio.DBCloseRO("video", "update_Studio")
     utils.close_ProgressBar("update_Studio")
 
-def update_Tag(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Tag")
+def update_Tag(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Tag")
     TagsInfos = embydb.get_FavoriteInfos("Tag") # EmbyFavourite, KodiId, EmbyArtwork, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Tag")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Tag")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Tag")}
     utils.create_ProgressBar("update_Tag", utils.Translate(33199), utils.Translate(33856))
-    TagObject = tag.Tag(EmbyServer, SQLs)
+    TagObject = tag.Tag(Library, SQLs)
     RecordsPercent = len(TagsInfos) / 100
 
     for Index, TagInfo in enumerate(TagsInfos):
@@ -884,18 +932,18 @@ def update_Tag(EmbyServer):
     del TagObject
     utils.close_ProgressBar("update_Tag")
 
-def update_MusicGenre(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_MusicGenre")
+def update_MusicGenre(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_MusicGenre")
     MusicGenreInfos = embydb.get_FavoriteInfos("MusicGenre") # EmbyFavourite, KodiId, EmbyArtwork, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_MusicGenre")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_MusicGenre")
     SQLs = {"music": dbio.DBOpenRO("music", "update_MusicGenre"), "video": dbio.DBOpenRO("video", "update_MusicGenre")}
     utils.create_ProgressBar("update_MusicGenre", utils.Translate(33199), utils.Translate(33857))
-    MusicGenreObject = musicgenre.MusicGenre(EmbyServer, SQLs)
+    MusicGenreObject = musicgenre.MusicGenre(Library, SQLs)
     RecordsPercent = len(MusicGenreInfos) / 100
 
     for Index, MusicGenreInfo in enumerate(MusicGenreInfos):
         if MusicGenreInfo[0]:
-            MusicGenreObject.set_favorite(MusicGenreInfo[0], {"KodiItemId": MusicGenreInfo[1], "Id": MusicGenreInfo[3], "KodiArtwork": {'favourite': MusicGenreInfo[2]}})
+            MusicGenreObject.set_favorite(MusicGenreInfo[0], {"KodiItemId": MusicGenreInfo[1], "Id": MusicGenreInfo[3], "KodiArtwork": {'favourite': MusicGenreInfo[2]}, "LibraryIds": MusicGenreInfo[4]})
 
         utils.update_ProgressBar("update_MusicGenre", Index / RecordsPercent, utils.Translate(33857), str(MusicGenreInfo[1]))
 
@@ -904,13 +952,13 @@ def update_MusicGenre(EmbyServer):
     del MusicGenreObject
     utils.close_ProgressBar("update_MusicGenre")
 
-def update_Person(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_Person")
+def update_Person(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_Person")
     PersonInfos = embydb.get_FavoriteInfos("Person") # EmbyFavourite, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_Person")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_Person")
     SQLs = {"video": dbio.DBOpenRO("video", "update_Person")}
     utils.create_ProgressBar("update_Person", utils.Translate(33199), utils.Translate(33858))
-    PersonObject = person.Person(EmbyServer, SQLs)
+    PersonObject = person.Person(Library, SQLs)
     RecordsPercent = len(PersonInfos) / 100
 
     for Index, PersonInfo in enumerate(PersonInfos):
@@ -923,18 +971,18 @@ def update_Person(EmbyServer):
     del PersonObject
     utils.close_ProgressBar("update_Person")
 
-def update_MusicArtist(EmbyServer):
-    embydb = dbio.DBOpenRO(EmbyServer.ServerData['ServerId'], "update_MusicArtist")
+def update_MusicArtist(Library):
+    embydb = dbio.DBOpenRO(Library.ServerData['ServerId'], "update_MusicArtist")
     MusicArtistInfos = embydb.get_FavoriteInfos("MusicArtist") # EmbyFavourite, KodiId, EmbyId
-    dbio.DBCloseRO(EmbyServer.ServerData['ServerId'], "update_MusicArtist")
+    dbio.DBCloseRO(Library.ServerData['ServerId'], "update_MusicArtist")
     SQLs = {"music": dbio.DBOpenRO("music", "update_MusicArtist"), "video": dbio.DBOpenRO("video", "update_MusicArtist")}
     utils.create_ProgressBar("update_MusicArtist", utils.Translate(33199), utils.Translate(33859))
-    MusicArtistObject = musicartist.MusicArtist(EmbyServer, SQLs)
+    MusicArtistObject = musicartist.MusicArtist(Library, SQLs)
     RecordsPercent = len(MusicArtistInfos) / 100
 
     for Index, MusicArtistInfo in enumerate(MusicArtistInfos):
         if MusicArtistInfo[0]:
-            MusicArtistObject.set_favorite(MusicArtistInfo[0], {"KodiItemId": MusicArtistInfo[1], "Id": MusicArtistInfo[2]})
+            MusicArtistObject.set_favorite(MusicArtistInfo[0], {"KodiItemId": MusicArtistInfo[1], "Id": MusicArtistInfo[2], "LibraryIds": MusicArtistInfo[3]})
 
         utils.update_ProgressBar("update_MusicArtist", Index / RecordsPercent, utils.Translate(33859), str(MusicArtistInfo[1]))
 

@@ -3,8 +3,7 @@ import xbmc
 from helper import utils
 
 class Folder:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, SQLs):
         self.SQLs = SQLs
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database

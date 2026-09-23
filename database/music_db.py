@@ -130,6 +130,15 @@ class MusicDatabase:
 
         return ArtistId[0]
 
+    def get_albumartistid_by_albumid(self, KodiId):
+        self.cursor.execute("SELECT idArtist FROM album_artist WHERE idAlbum = ?", (KodiId,))
+        ArtistId = self.cursor.fetchone()
+
+        if not ArtistId:
+            return None
+
+        return ArtistId[0]
+
     # album
     def add_album(self, Title, Type, Artist, ProductionYear, PremiereDate, Genre, Bio, Thumb, CommunityRating, LastScraped, DateAdded, MusicBrainzAlbumID, UniqueIdReleaseGroup, Compilation, Studios, RunTime, ArtistSort, LibraryId):
         self.cursor.execute("SELECT coalesce(max(idAlbum), 0) FROM album")

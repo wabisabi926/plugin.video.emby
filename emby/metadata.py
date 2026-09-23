@@ -1,5 +1,5 @@
-from urllib.parse import unquote
 import xbmc
+from helper import utils
 
 MediaIdMapping = {"m": "movie", "e": "episode", "M": "musicvideo", "p": "picture", "a": "audio", "t": "tvchannel", "i": "movie", "T": "video", "v": "video", "c": "channel"} # T=trailer, i=iso
 EmbyArtworkIDs = {"p": "Primary", "a": "Art", "b": "Banner", "d": "Disc", "l": "Logo", "t": "Thumb", "B": "Backdrop", "c": "Chapter"}
@@ -22,7 +22,15 @@ def load_MetaData(Payload, isPicture, isAudio):
 
     if isPicture:  # Image/picture
         MetaData["PlayerId"] = -1
-        Data = PayloadMod[PayloadMod.rfind("/") + 1:].split("-") # MetaData
+        Data = PayloadMod.split('/', 3)
+        PosSlash = Data[3].find("/")
+
+        if PosSlash != -1:
+            Data = Data[3][:PosSlash] # MetaData
+        else:
+            Data = Data[3]
+
+        Data = Data.split("-") # MetaData
         ServerId = PayloadSplit[2]
         EmbyId = Data[1]
         DataLen = len(Data)
@@ -34,7 +42,7 @@ def load_MetaData(Payload, isPicture, isAudio):
         MetaData.update({'ImageIndex': Data[2], 'ImageType': EmbyArtworkIDs[Data[3]], 'ImageTag': Data[4]})
 
         if DataLen >= 6 and Data[5]:
-            MetaData['Overlay'] = unquote(Data[5])
+            MetaData['Overlay'] = utils.image_text_decode(Data[5])
         else:
             MetaData['Overlay'] = ""
     elif isAudio:
@@ -42,7 +50,7 @@ def load_MetaData(Payload, isPicture, isAudio):
         Data = PayloadMod[PayloadMod.rfind("/") + 1:].split("-") # MetaData
         ServerId = PayloadSplit[2]
         EmbyId = Data[1]
-        MediaSources = [[{'Id': Data[2], 'IntroStartPositionTicks': 0, 'IntroEndPositionTicks': 0, 'CreditsPositionTicks': 0, 'Path': ""}, [], [], []]]
+        MediaSources = [[{'Id': Data[2], 'IntroStartPositionTicks': 0, 'IntroEndPositionTicks': 0, 'CreditsPositionTicks': 0, 'Path': "", 'IndexMappingVideo': {}, 'IndexMappingAudio': {}, 'IndexMappingSubtitle': {}}, [], [], []]]
     else:
         MetaData["PlayerId"] = 1
         EmbyId = PayloadSplit[-3]
@@ -50,6 +58,9 @@ def load_MetaData(Payload, isPicture, isAudio):
         Data = PayloadSplit[-2]
         Data = Data.split("-")
         Data[4] = bytes.fromhex(Data[4]).decode('utf-8')
+        KodiStreamVideoIndex = 0
+        KodiStreamAudioIndex = 0
+        KodiStreamSubtitleIndex = 0
 
         # Extract metatdata, sperators are <>, ><, <<, :
         MetadataSubs = Data[4].split("<>")
@@ -61,6 +72,9 @@ def load_MetaData(Payload, isPicture, isAudio):
             for IndexSub, MediaData in enumerate(MediaDatas):
                 if IndexSub == 0:
                     MediaSourceInfos = MediaData.split(":")
+                    MediaSources[Index][0]['IndexMappingVideo'] = {}
+                    MediaSources[Index][0]['IndexMappingAudio'] = {}
+                    MediaSources[Index][0]['IndexMappingSubtitle'] = {}
 
                     for MediaSourceInfoIndex, MediaSourceInfo in enumerate(MediaSourceInfos):
                         if MediaSourceInfoIndex == 0:
@@ -93,6 +107,8 @@ def load_MetaData(Payload, isPicture, isAudio):
                                 MediaSources[Index][1][VideoStreamIndex]['BitRate'] = int(VideoStreamInfo)
                             elif VideoStreamInfoIndex == 2:
                                 MediaSources[Index][1][VideoStreamIndex]['Index'] = VideoStreamInfo
+                                MediaSources[Index][0]['IndexMappingVideo'][str(VideoStreamInfo)] = KodiStreamVideoIndex
+                                KodiStreamVideoIndex += 1
                             elif VideoStreamInfoIndex == 3:
                                 MediaSources[Index][1][VideoStreamIndex]['Width'] = int(VideoStreamInfo)
                 elif IndexSub == 2 and MediaData:
@@ -111,6 +127,8 @@ def load_MetaData(Payload, isPicture, isAudio):
                                 MediaSources[Index][2][AudioStreamIndex]['BitRate'] = int(AudioStreamInfo)
                             elif AudioStreamInfoIndex == 3:
                                 MediaSources[Index][2][AudioStreamIndex]['Index'] = AudioStreamInfo
+                                MediaSources[Index][0]['IndexMappingAudio'][str(AudioStreamInfo)] = KodiStreamAudioIndex
+                                KodiStreamAudioIndex += 1
                 elif IndexSub == 3 and MediaData:
                     SubtitleStreams = MediaData.split("><")
 
@@ -127,8 +145,12 @@ def load_MetaData(Payload, isPicture, isAudio):
                                 MediaSources[Index][3][SubtitleStreamIndex]['external'] = bool(int(SubtitleStreamInfo))
                             elif SubtitleStreamInfoIndex == 3:
                                 MediaSources[Index][3][SubtitleStreamIndex]['Index'] = SubtitleStreamInfo
+                                MediaSources[Index][0]['IndexMappingSubtitle'][str(SubtitleStreamInfo)] = KodiStreamSubtitleIndex
+                                KodiStreamSubtitleIndex += 1
                             elif SubtitleStreamInfoIndex == 4:
                                 MediaSources[Index][3][SubtitleStreamIndex]['Codec'] = SubtitleStreamInfo
+                            elif SubtitleStreamInfoIndex == 5:
+                                MediaSources[Index][3][SubtitleStreamIndex]['Forced'] = bool(int(SubtitleStreamInfo))
 
         MetaData.update({'KodiId': Data[1], 'KodiFileId': Data[2]})
 

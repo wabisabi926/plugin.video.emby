@@ -47,16 +47,21 @@ def update_querycache_userdata(UserDatas):
             del QueryCache[ctype][cid]
 
     for UserData, items in ItemUpdate:
-        position_ticks = UserData[1]
+        PositionTicks = UserData[1]
 
-        if position_ticks is not None:
-            KodiPosition = round(float(position_ticks / 10000000.0), 6)
+        if PositionTicks is not None:
+            KodiPosition = round(float(PositionTicks / 10000000.0), 6)
         else:
             KodiPosition = -1
 
         LastPlayed = UserData[2]
         PlayCount = UserData[3]
         PlaybackEnded = UserData[4]
+
+        if UserData[5]:
+            KodiRunTimeTicks = int(UserData[5])
+        else:
+            KodiRunTimeTicks = 0
 
         for ListItem, ContentRequest in items:
             if ContentRequest in ("MusicArtist", "MusicAlbum", "Audio"):
@@ -65,6 +70,7 @@ def update_querycache_userdata(UserDatas):
                 if PlayCount == -1:
                     if PlaybackEnded:
                         current = InfoTag.getPlayCount()
+
                         if isinstance(current, int):
                             InfoTag.setPlayCount(current + 1)
                 else:
@@ -74,9 +80,9 @@ def update_querycache_userdata(UserDatas):
 
                 if KodiPosition != -1:
                     if KodiPosition > 60:
-                        InfoTag.setResumePoint(float(KodiPosition))
+                        InfoTag.setResumePoint(float(KodiPosition), KodiRunTimeTicks)
                     else:
-                        InfoTag.setResumePoint(0.0)
+                        InfoTag.setResumePoint(0.0, KodiRunTimeTicks)
 
                 if PlayCount == -1:
                     if PlaybackEnded:

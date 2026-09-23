@@ -4,8 +4,8 @@ from helper import utils
 from . import common
 
 class Trailer:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
@@ -28,8 +28,8 @@ class Trailer:
                 if KodiParentId:
                     if EmbyParentType in ("Movie", "Series"):
                         common.set_streams(Item)
-                        common.set_chapters(Item, self.EmbyServer.ServerData['ServerId'])
-                        common.set_path_filename(Item, self.EmbyServer.ServerData['ServerId'], {}, True)
+                        common.set_chapters(Item, self.Library.ServerData['ServerId'])
+                        common.set_path_filename(Item, self.Library.ServerData['ServerId'], {}, True)
                         KodiPath = Item['KodiFullPath']
                         self.SQLs["video"].update_trailer(KodiParentId, KodiPath, EmbyParentType)
 

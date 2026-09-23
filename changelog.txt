@@ -1,3 +1,26 @@
+12.4.24
+=============
+Improve timeouts when server not avialable
+Add contextmenu option for album -> goto albumartist
+Kodi compatibility with MyVideos148.db
+Fix dynamic nodes progress updates
+Kodi compatibility with MyVideos149.db
+Fix picture slideshow
+Improve jsonrpc calls
+Fix remotely set repeat mode
+Fix subtitle selections
+Fix dynamic item remote playback cache
+Workaround Kodi, stop command via API results in a Kodi freeze for addon mode
+Fix theme play issue
+Workaround for Kodi 22 bug (plugin cannot read files)
+Fix cinema mode when youtube trailer is not playable
+disable transcoding options for webdav and pathsubstitution mode. Kodi does not support it, only for http
+change image handling
+fix icons when using multiple Emby servers
+several minor fixes
+
+
+
 12.4.23
 =============
 fix sync bug

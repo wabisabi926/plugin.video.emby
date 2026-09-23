@@ -3,8 +3,8 @@ from helper import utils
 from . import common
 
 class Person:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
@@ -13,12 +13,12 @@ class Person:
     def change(self, Item, IncrementalSync):
         Item['LibraryId'] = "999999999"
 
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "Person"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Person"):
             return False
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.person (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
-        common.set_Favorites_Artwork(Item, self.EmbyServer.ServerData['ServerId'])
-        common.set_KodiArtwork(Item, self.EmbyServer.ServerData['ServerId'], False)
+        common.set_Favorites_Artwork(Item, self.Library.ServerData['ServerId'])
+        common.set_KodiArtwork(Item, self.Library.ServerData['ServerId'], False)
 
         if IncrementalSync and utils.ArtworkCacheIncremental:
             common.cache_artwork(Item['KodiArtwork'])
@@ -92,10 +92,10 @@ class Person:
             return
 
         if hasMovies or not IsFavorite:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Actor", "Movies", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://movies/actors/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Actor", "Movies", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://movies/actors/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
 
         if hasTVShows or not IsFavorite:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Actor", "TV Shows", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/actors/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Actor", "TV Shows", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/actors/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
 
         if hasMusicVideos or not IsFavorite:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Actor", "Musicvideos", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://musicvideos/actors/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Actor", "Musicvideos", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://musicvideos/actors/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))

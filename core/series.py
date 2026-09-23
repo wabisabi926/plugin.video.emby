@@ -4,14 +4,14 @@ from . import common, genre, tag, studio, person, trailer
 
 
 class Series:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
-        self.GenreObject = genre.Genre(EmbyServer, self.SQLs)
-        self.TagObject = tag.Tag(EmbyServer, self.SQLs)
-        self.StudioObject = studio.Studio(EmbyServer, self.SQLs)
-        self.PersonObject = person.Person(EmbyServer, self.SQLs)
-        self.TrailerObject = trailer.Trailer(self.EmbyServer, self.SQLs)
+        self.GenreObject = genre.Genre(Library, SQLs)
+        self.TagObject = tag.Tag(Library, SQLs)
+        self.StudioObject = studio.Studio(Library, SQLs)
+        self.PersonObject = person.Person(Library, SQLs)
+        self.TrailerObject = trailer.Trailer(Library, SQLs)
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs
@@ -28,17 +28,17 @@ class Series:
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.series (DEBUG): Process item: {Item['Name']}", 1) # LOGDEBUG
 
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "Series"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Series"):
             return False
 
-        common.set_path_filename(Item, self.EmbyServer.ServerData['ServerId'], {}, False)
+        common.set_path_filename(Item, self.Library.ServerData['ServerId'], {}, False)
         common.set_RunTimeTicks(Item)
-        common.set_people(Item, self.SQLs, self.PersonObject, self.EmbyServer, IncrementalSync)
-        common.set_common(Item, self.EmbyServer.ServerData['ServerId'], False, IncrementalSync)
+        common.set_people(Item, self.SQLs, self.PersonObject, self.Library, IncrementalSync)
+        common.set_common(Item, self.Library.ServerData['ServerId'], False, IncrementalSync)
         Item['TagItems'].append({"LibraryId": Item["LibraryId"], "Type": "Tag", "Id": f"{utils.MappingIds['Tag']}00{Item['LibraryId']}", "Name": Item['LibraryName'], "Memo": "library"})
-        common.set_MetaItems(Item, self.SQLs, self.GenreObject, self.EmbyServer, "Genre", "GenreItems", "", IncrementalSync, Item["LibraryId"])
-        common.set_MetaItems(Item, self.SQLs, self.StudioObject, self.EmbyServer, "Studio", "Studios", "", IncrementalSync, Item["LibraryId"])
-        common.set_MetaItems(Item, self.SQLs, self.TagObject, self.EmbyServer, "Tag", 'TagItems', "", IncrementalSync, Item["LibraryId"])
+        common.set_MetaItems(Item, self.SQLs, self.GenreObject, self.Library, "Genre", "GenreItems", "", IncrementalSync, Item["LibraryId"])
+        common.set_MetaItems(Item, self.SQLs, self.StudioObject, self.Library, "Studio", "Studios", "", IncrementalSync, Item["LibraryId"])
+        common.set_MetaItems(Item, self.SQLs, self.TagObject, self.Library, "Tag", 'TagItems', "", IncrementalSync, Item["LibraryId"])
 
         if not Item['UpdateItem']:
             if utils.DebugLog: xbmc.log(f"EMBY.core.series (DEBUG): KodiItemId {Item['Id']} not found", 1) # LOGDEBUG
@@ -148,7 +148,7 @@ class Series:
             elif utils.DebugLog:
                 xbmc.log(f"EMBY.core.series (DEBUG): DELETE {Item['Id']}", 1) # LOGDEBUG
         else:
-            LibrarySyncedName = self.EmbyServer.library.LibrarySyncedNames[Item['LibraryId']]
+            LibrarySyncedName = self.Library.LibrarySyncedNames[Item['LibraryId']]
             self.SQLs["video"].delete_library_links_tags(Item['KodiItemId'], "tvshow", LibrarySyncedName)
 
         self.SQLs['emby'].remove_item_by_parentid(Item['Id'], "Video", Item['LibraryId']) # delete referenced specials, themes etc.
@@ -162,4 +162,4 @@ class Series:
             Item['KodiArtwork']['favourite'], Item['Name'], _ = self.SQLs["video"].get_FavoriteSubcontent(Item['KodiItemId'], "tvshow")
 
         if Item['Name']:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Series", "TV Shows", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/titles/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Series", "TV Shows", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/titles/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))

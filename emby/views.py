@@ -338,9 +338,11 @@ DynamicNodes = {
 }
 
 class Views:
-    def __init__(self, Embyserver):
-        self.EmbyServer = Embyserver
-        self.ViewItems = {}
+    def __init__(self, ServerData, ViewItems, LibrarySynced, API):
+        self.ServerData = ServerData
+        self.LibrarySynced = LibrarySynced
+        self.API = API
+        self.ViewItems = ViewItems
         self.Nodes = {"NodesDynamic": [], "NodesSynced": []}
         self.PictureNodes = {}
         self.update_nodes()
@@ -350,7 +352,7 @@ class Views:
         self.PictureNodes = {}
 
         for library_id, Data in list(self.ViewItems.items()):
-            view = {'LibraryId': library_id, 'Name': Data[0], 'Tag': Data[0], 'ContentType': Data[1], "Icon": Data[2], 'FilteredName': utils.valid_Filename(Data[0]), "ServerId": self.EmbyServer.ServerData["ServerId"]}
+            view = {'LibraryId': library_id, 'Name': Data[0], 'Tag': Data[0], 'ContentType': Data[1], "Icon": Data[2], 'FilteredName': utils.valid_Filename(Data[0]), "ServerId": self.ServerData["ServerId"]}
 
             for Dynamic in (True, False):
                 if view['ContentType'] in ("books", "games", "photos"):
@@ -359,7 +361,7 @@ class Views:
                 if utils.SystemShutdown:
                     return
 
-                if Dynamic or f"'{view['LibraryId']}'" in str(self.EmbyServer.library.LibrarySynced):
+                if Dynamic or f"'{view['LibraryId']}'" in str(self.LibrarySynced):
                     if view['ContentType'] in ('music', 'audiobooks', 'podcasts'):
                         view['Tag'] = f"EmbyLibraryId-{library_id}"
                         add_xpsplaylist(view)
@@ -420,7 +422,7 @@ class Views:
         self.add_nodes({'ContentType': "rootvideo"}, True)
 
     def update_views(self):
-        Data = self.EmbyServer.API.get_views()
+        Data = self.API.get_views()
 
         if 'Items' in Data:
             Libraries = Data['Items']
@@ -440,7 +442,7 @@ class Views:
                 library['ContentType'] = library.get('CollectionType', "mixed")
 
             if "Primary" in library["ImageTags"]:
-                IconPath = f"http://127.0.0.1:57342/picture/{self.EmbyServer.ServerData['ServerId']}/p-{library['Id']}-0-p-{library['ImageTags']['Primary']}"
+                IconPath = utils.image_url_encode(f"http://127.0.0.1:57342/picture/{self.ServerData['ServerId']}/p-{library['Id']}-0-p-{library['ImageTags']['Primary']}", "unknown")
 
             self.ViewItems[library['Id']] = [utils.decode_XML(library['Name']), library['ContentType'], IconPath]
 
@@ -602,31 +604,31 @@ class Views:
             else: # Dynamic root nodes
                 for NodeIndex, node in enumerate(DynamicNodes[view['ContentType']], 1):
                     if view['ContentType'] == "rootvideo":
-                        if not self.EmbyServer.ServerData["ServerId"]:
+                        if not self.ServerData["ServerId"]:
                             continue
 
-                        NodePath = f"library://video/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.EmbyServer.ServerData['ServerId']}.xml"
-                        FilePath = f"special://profile/library/video/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.EmbyServer.ServerData['ServerId']}.xml"
+                        NodePath = f"library://video/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.ServerData['ServerId']}.xml"
+                        FilePath = f"special://profile/library/video/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.ServerData['ServerId']}.xml"
                     elif view['ContentType'] == "rootaudio":
-                        if not self.EmbyServer.ServerData["ServerId"]:
+                        if not self.ServerData["ServerId"]:
                             continue
 
-                        NodePath = f"library://music/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.EmbyServer.ServerData['ServerId']}.xml"
-                        FilePath = f"special://profile/library/music/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.EmbyServer.ServerData['ServerId']}.xml"
+                        NodePath = f"library://music/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.ServerData['ServerId']}.xml"
+                        FilePath = f"special://profile/library/music/emby_dynamic_{node[0].lower()}_{node[3].lower()}_{self.ServerData['ServerId']}.xml"
                     else:
                         NodePath = f"library://music/emby_dynamic_{node[0].lower()}_{node[3].lower()}.xml"
                         FilePath = f"special://profile/library/music/emby_dynamic_{node[0].lower()}_{node[3].lower()}.xml"
 
-                    if not xbmcvfs.exists(FilePath) and self.EmbyServer.ServerData["ServerId"]:
+                    if not xbmcvfs.exists(FilePath) and self.ServerData["ServerId"]:
                         Data = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
                         Data += f'<node order="{NodeIndex}" type="folder">\n'
                         Data += f'    <label>EMBY DYNAMIC: {utils.encode_XML(node[1])}</label>\n'
                         Data += f'    <icon>{utils.encode_XML(node[2])}</icon>\n'
 
                         if node[0] == "Search":
-                            Data += f'    <path>plugin://plugin.service.emby-next-gen/?mode=search&amp;server={self.EmbyServer.ServerData["ServerId"]}</path>\n'
+                            Data += f'    <path>plugin://plugin.service.emby-next-gen/?mode=search&amp;server={self.ServerData["ServerId"]}</path>\n'
                         else:
-                            Data += f'    <path>plugin://plugin.service.emby-next-gen/?mode=browse&amp;id=0&amp;parentid=0&amp;libraryid=0&amp;content={node[3]}&amp;server={self.EmbyServer.ServerData["ServerId"]}&amp;query={node[0]}</path>\n'
+                            Data += f'    <path>plugin://plugin.service.emby-next-gen/?mode=browse&amp;id=0&amp;parentid=0&amp;libraryid=0&amp;content={node[3]}&amp;server={self.ServerData["ServerId"]}&amp;query={node[0]}</path>\n'
 
                         if node[4]:
                             Data += '    <group/>\n'
@@ -650,13 +652,13 @@ class Views:
                     NodeIndex += 1
 
                     if view['ContentType'] in ("rootaudio", "rootvideo"):
-                        if not self.EmbyServer.ServerData['ServerId']:
+                        if not self.ServerData['ServerId']:
                             continue
 
                         if view['ContentType'] == "rootvideo":
-                            NodeData = {'title': node[1].replace("EMBY: ", ""), 'path': f"library://video/{node[0]}_{self.EmbyServer.ServerData['ServerId']}.xml", 'icon': node[2]}
+                            NodeData = {'title': node[1].replace("EMBY: ", ""), 'path': f"library://video/{node[0]}_{self.ServerData['ServerId']}.xml", 'icon': node[2]}
                         else:
-                            NodeData = {'title': node[1].replace("EMBY: ", ""), 'path': f"library://music/{node[0]}_{self.EmbyServer.ServerData['ServerId']}.xml", 'icon': node[2]}
+                            NodeData = {'title': node[1].replace("EMBY: ", ""), 'path': f"library://music/{node[0]}_{self.ServerData['ServerId']}.xml", 'icon': node[2]}
 
                         NodeAdd = True
 
@@ -710,7 +712,7 @@ class Views:
 
     def set_synced_node(self, Folder, view, node, NodeIndex, LimitFactor):
         if view.get('ContentType', "").startswith("root"):
-            FilePath = f"{Folder}{node[0]}_{self.EmbyServer.ServerData['ServerId']}.xml"
+            FilePath = f"{Folder}{node[0]}_{self.ServerData['ServerId']}.xml"
         else:
             FilePath = f"{Folder}{node[0]}.xml"
 
@@ -727,7 +729,7 @@ class Views:
 
             utils.mkDir(Folder)
 
-            if not self.EmbyServer.ServerData["ServerId"]:
+            if not self.ServerData["ServerId"]:
                 return
 
             Data = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
@@ -736,7 +738,7 @@ class Views:
                 Data += f'<node order="{NodeIndex}" type="folder">\n'
                 Data += f'    <label>{LabelXMLEncoded}</label>\n'
                 Data += f'    <icon>{utils.encode_XML(node[2])}</icon>\n'
-                Data += f'    <path>plugin://plugin.service.emby-next-gen/?mode={node[4][0][1]}&amp;mediatype={node[4][0][2]}&amp;libraryname={quote(view.get("Name", "unknown"))}&amp;server={self.EmbyServer.ServerData["ServerId"]}</path>\n'
+                Data += f'    <path>plugin://plugin.service.emby-next-gen/?mode={node[4][0][1]}&amp;mediatype={node[4][0][2]}&amp;libraryname={quote(view.get("Name", "unknown"))}&amp;server={self.ServerData["ServerId"]}</path>\n'
 
                 if len(node) >= 8 and node[7]:
                     Data += '    <group/>\n'
@@ -784,13 +786,13 @@ class Views:
             utils.writeFile(FilePath, Data.encode("utf-8"))
 
     def add_synced_subnode(self, ItemId, LibraryId, NodeName, Content, ImageTags, KodiLibrary, EmbyParentContent):
-        if LibraryId in self.EmbyServer.Views.ViewItems:
-            IconFile = utils.download_Icon(ItemId, ImageTags, self.EmbyServer.ServerData["ServerId"], NodeName, False) # Download image
-            LibraryType = self.EmbyServer.Views.ViewItems[LibraryId][1]
+        if LibraryId in self.ViewItems:
+            IconFile = utils.download_Icon(ItemId, ImageTags, self.ServerData["ServerId"], NodeName, False) # Download image
+            LibraryType = self.ViewItems[LibraryId][1]
 
             # Generate xml nodes
             if KodiLibrary == "music":
-                if self.EmbyServer.Views.ViewItems[LibraryId][1] == "playlists":
+                if self.ViewItems[LibraryId][1] == "playlists":
                     return
 
                 if Content == "MusicGenre":
@@ -839,7 +841,7 @@ class Views:
                     self.set_synced_node(Folder, View, Node, get_NodexIndex_by_Alphabet(NodeName), 0)
 
     def remove_synced_subnode(self, ItemId, LibraryId, Content, ContentName):
-        if LibraryId in self.EmbyServer.Views.ViewItems:
+        if LibraryId in self.ViewItems:
             LibraryType = self.ViewItems[LibraryId][1]
 
             if LibraryType == "mixed":

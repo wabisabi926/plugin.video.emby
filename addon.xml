@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8' standalone="yes"?>
-<addon id="plugin.service.emby-next-gen" name="Emby for Kodi Next Gen" version="12.4.23" provider-name="quickmic">
+<addon id="plugin.service.emby-next-gen" name="Emby for Kodi Next Gen" version="12.4.24" provider-name="quickmic">
     <requires>
         <import addon="xbmc.python" version="3.0.1"/>
     </requires>
@@ -35,6 +35,10 @@
                 <item library="service.py" args="gotoartist">
                     <label>33765</label>
                     <visible>[String.IsEqual(Window(10000).Property(EmbyGoto),True) + String.IsEqual(ListItem.DBTYPE,"song")]</visible>
+                </item>
+                <item library="service.py" args="gotoalbumartist">
+                    <label>33765</label>
+                    <visible>[String.IsEqual(Window(10000).Property(EmbyGoto),True) + String.IsEqual(ListItem.DBTYPE,"album")]</visible>
                 </item>
             </menu>
             <item library="service.py" args="similarshow">

@@ -1,5 +1,4 @@
 from helper import utils
-import xbmcvfs
 
 class CommonDatabase:
     def __init__(self, cursor):
@@ -52,16 +51,18 @@ class CommonDatabase:
 
     # artwork
     def delete_artwork(self, KodiId, KodiMediaType):
-        self.cursor.execute("SELECT DISTINCT url FROM art WHERE media_id = ? AND media_type = ?", (KodiId, KodiMediaType))
-        URLs = self.cursor.fetchall()
+        with utils.SafeLock(utils.ArtworkDeleteLock):
+            self.cursor.execute("SELECT DISTINCT url FROM art WHERE media_id = ? AND media_type = ?", (KodiId, KodiMediaType))
+            utils.ArtworkDelete.update(row[0] for row in self.cursor)
+
         self.cursor.execute("DELETE FROM art WHERE media_id = ? AND media_type = ?", (KodiId, KodiMediaType))
-        delete_artworkcache(URLs)
 
     def delete_artwork_force(self, KodiId):
-        self.cursor.execute("SELECT DISTINCT url FROM art WHERE media_id = ?", (KodiId,))
-        URLs = self.cursor.fetchall()
+        with utils.SafeLock(utils.ArtworkDeleteLock):
+            self.cursor.execute("SELECT DISTINCT url FROM art WHERE media_id = ?", (KodiId,))
+            utils.ArtworkDelete.update(row[0] for row in self.cursor)
+
         self.cursor.execute("DELETE FROM art WHERE media_id = ?", (KodiId,))
-        delete_artworkcache(URLs)
 
     def get_artwork_urls(self, media_type):
         self.cursor.execute("SELECT url FROM art WHERE media_type = ?", (media_type,))
@@ -103,20 +104,3 @@ def toggle_path(CurrentPath, NewPath):
         return f'{CurrentPath.replace("/emby_addon_mode/", "dav://127.0.0.1:57342/")}|redirect-limit=1000&failonerror=false'
 
     return CurrentPath.replace("http://127.0.0.1:57342/", "dav://127.0.0.1:57342/")
-
-def delete_artworkcache(Paths):
-    for row in Paths:
-        Path = row[0]
-
-        if not Path:
-            continue
-
-        Hash = utils.kodi_hash(Path)
-        PathBase = f"{utils.FolderUserdataThumbnails}{Hash[0]}/{Hash}"
-
-        for ext in ("jpg", "png"):
-            PathFile = f"{PathBase}.{ext}"
-
-            if xbmcvfs.exists(PathFile):
-                utils.delFile(PathFile)
-                break

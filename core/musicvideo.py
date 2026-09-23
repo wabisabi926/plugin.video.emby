@@ -4,16 +4,16 @@ from . import common, musicgenre, tag, studio, person, musicartist, boxsets
 
 
 class MusicVideo:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs.copy()
         self.SQLs['music'] = None
-        self.MusicGenreObject = musicgenre.MusicGenre(EmbyServer, self.SQLs)
-        self.MusicArtistObject = musicartist.MusicArtist(EmbyServer, self.SQLs)
-        self.TagObject = tag.Tag(EmbyServer, self.SQLs)
-        self.StudioObject = studio.Studio(EmbyServer, self.SQLs)
-        self.PersonObject = person.Person(EmbyServer, self.SQLs)
-        self.BoxSetObject = boxsets.BoxSets(EmbyServer, self.SQLs)
+        self.MusicGenreObject = musicgenre.MusicGenre(Library, self.SQLs)
+        self.MusicArtistObject = musicartist.MusicArtist(Library, self.SQLs)
+        self.TagObject = tag.Tag(Library, self.SQLs)
+        self.StudioObject = studio.Studio(Library, self.SQLs)
+        self.PersonObject = person.Person(Library, self.SQLs)
+        self.BoxSetObject = boxsets.BoxSets(Library, self.SQLs)
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs.copy()
@@ -31,14 +31,14 @@ class MusicVideo:
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.musicvideo (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
 
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "MusicVideo"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "MusicVideo"):
             return False
 
         common.swap_mediasources(Item)
         common.set_MusicVideoTracks(Item)
         common.set_RunTimeTicks(Item)
         common.set_streams(Item)
-        common.set_common(Item, self.EmbyServer.ServerData['ServerId'], False, IncrementalSync)
+        common.set_common(Item, self.Library.ServerData['ServerId'], False, IncrementalSync)
         Item['Album'] = Item.get('Album', "--NO INFO--")
 
         # Load Arrays
@@ -55,8 +55,8 @@ class MusicVideo:
             KodiFileIdCurrent = KodiFileIds[Index]
             EmbyMusicArtistIds, EmbyMusicGenreIds = self.set_metadata(UpdateItem, IncrementalSync)
             common.delete_ContentItemReferences(KodiItemIdCurrent, KodiFileIdCurrent, UpdateItem.get('ExtraType', ""), self.SQLs, "musicvideo", False)
-            common.set_path_filename(UpdateItem, self.EmbyServer.ServerData['ServerId'], None)
-            common.set_multipart(UpdateItem, self.EmbyServer)
+            common.set_path_filename(UpdateItem, self.Library.ServerData['ServerId'], None)
+            common.set_multipart(UpdateItem, self.Library)
             common.update_downloaded_info(UpdateItem, self.SQLs, "musicvideo")
             self.assign_metadata(UpdateItem, KodiItemIdCurrent, KodiFileIdCurrent)
             self.SQLs["video"].update_musicvideos(KodiItemIdCurrent, KodiFileIdCurrent, UpdateItem['KodiName'], UpdateItem['KodiArtwork']['poster'], UpdateItem['KodiRunTimeTicks'], UpdateItem['Directors'], UpdateItem['Studio'], UpdateItem['Overview'], UpdateItem['Album'], UpdateItem['MusicArtist'], UpdateItem['MusicGenre'], UpdateItem['IndexNumber'], UpdateItem['KodiPremiereDate'], UpdateItem['KodiFilename'], UpdateItem['KodiStackedFilename'], UpdateItem['KodiDateCreated'], KodiPathIdCurrent, UpdateItem['KodiPath'], bool(PlaylistTag), UpdateItem['KodiFullPath'])
@@ -70,8 +70,8 @@ class MusicVideo:
                 xbmc.log(f"EMBY.core.musicvideo (DEBUG): UPDATE [{KodiPathIdCurrent} / {KodiFileIdCurrent} / {KodiItemIdCurrent}] {UpdateItem['Id']}: {UpdateItem['Name']}", 1) # LOGDEBUG
 
             utils.notify_event("content_update", {"EmbyId": UpdateItem['Id'], "KodiId": KodiItemIdCurrent, "KodiType": "musicvideo"}, IncrementalSync)
-            common.update_boxsets(IncrementalSync, UpdateItem['ParentId'], UpdateItem['LibraryId'], self.SQLs, self.EmbyServer) # Update Boxset
-            common.add_multiversion(UpdateItem, "MusicVideo", self.EmbyServer, self.SQLs, self.EmbyServer.ServerData['ServerId'], EmbyMusicArtistIds, EmbyMusicGenreIds)
+            common.update_boxsets(IncrementalSync, UpdateItem['ParentId'], UpdateItem['LibraryId'], self.SQLs, self.Library) # Update Boxset
+            common.add_multiversion(UpdateItem, "MusicVideo", self.Library, self.SQLs, EmbyMusicArtistIds, EmbyMusicGenreIds)
             del UpdateItem
 
         # New library (insert new Kodi record)
@@ -84,8 +84,8 @@ class MusicVideo:
             Item['KodiItemId'] = common.add_Ids_SingleContent(KodiItemIds, KodiItemIdCurrent)
             KodiFileIdCurrent = self.SQLs["video"].create_entry_file()
             Item['KodiFileId'] = common.add_Ids_SingleContent(KodiFileIds, KodiFileIdCurrent)
-            common.set_path_filename(Item, self.EmbyServer.ServerData['ServerId'], None)
-            common.set_multipart(Item, self.EmbyServer)
+            common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
+            common.set_multipart(Item, self.Library)
             KodiPathIdCurrent = self.SQLs["video"].get_add_path(Item['KodiPath'], "musicvideos")
             Item['KodiPathId'] = common.add_Ids_SingleContent(KodiPathIds, KodiPathIdCurrent)
             Item['LibraryIds'] = common.add_Ids_SingleContent(LibraryIds, Item['LibraryId'])
@@ -99,22 +99,22 @@ class MusicVideo:
                 xbmc.log(f"EMBY.core.musicvideo (DEBUG): ADD [{KodiPathIdCurrent} / {KodiFileIdCurrent} / {KodiItemIdCurrent}] {Item['Id']}: {Item['Name']}", 1) # LOGDEBUG
 
             utils.notify_event("content_add", {"EmbyId": Item['Id'], "KodiId": KodiItemIdCurrent, "KodiType": "musicvideo"}, IncrementalSync)
-            common.update_boxsets(IncrementalSync, Item['ParentId'], Item['LibraryId'], self.SQLs, self.EmbyServer) # Update Boxset
-            common.add_multiversion(Item, "MusicVideo", self.EmbyServer, self.SQLs, self.EmbyServer.ServerData['ServerId'], EmbyMusicArtistIds, EmbyMusicGenreIds)
+            common.update_boxsets(IncrementalSync, Item['ParentId'], Item['LibraryId'], self.SQLs, self.Library) # Update Boxset
+            common.add_multiversion(Item, "MusicVideo", self.Library, self.SQLs, EmbyMusicArtistIds, EmbyMusicGenreIds)
 
         return not Item['UpdateItem']
 
     def set_metadata(self, Item, IncrementalSync):
-        LibrarySyncedName = self.EmbyServer.library.LibrarySyncedNames[Item['LibraryId']]
+        LibrarySyncedName = self.Library.LibrarySyncedNames[Item['LibraryId']]
         Item['TagItems'].append({"LibraryId": Item['LibraryId'], "Type": "Tag", "Id": f"{utils.MappingIds['Tag']}00{Item['LibraryId']}", "Name": LibrarySyncedName, "Memo": "library"})
-        common.set_chapters(Item, self.EmbyServer.ServerData['ServerId'])
-        common.set_MetaItems(Item, self.SQLs, self.MusicArtistObject, self.EmbyServer, "MusicArtist", 'ArtistItems', "video", IncrementalSync, Item['LibraryId'])
-        common.set_MetaItems(Item, self.SQLs, self.MusicGenreObject, self.EmbyServer, "MusicGenre", 'GenreItems', "video", IncrementalSync, Item['LibraryId'])
-        common.set_MetaItems(Item, self.SQLs, self.TagObject, self.EmbyServer, "Tag", 'TagItems', "", IncrementalSync, Item['LibraryId'])
-        common.set_MetaItems(Item, self.SQLs, self.StudioObject, self.EmbyServer, "Studio", 'Studios', "", IncrementalSync, Item['LibraryId'])
+        common.set_chapters(Item, self.Library.ServerData['ServerId'])
+        common.set_MetaItems(Item, self.SQLs, self.MusicArtistObject, self.Library, "MusicArtist", 'ArtistItems', "video", IncrementalSync, Item['LibraryId'])
+        common.set_MetaItems(Item, self.SQLs, self.MusicGenreObject, self.Library, "MusicGenre", 'GenreItems', "video", IncrementalSync, Item['LibraryId'])
+        common.set_MetaItems(Item, self.SQLs, self.TagObject, self.Library, "Tag", 'TagItems', "", IncrementalSync, Item['LibraryId'])
+        common.set_MetaItems(Item, self.SQLs, self.StudioObject, self.Library, "Studio", 'Studios', "", IncrementalSync, Item['LibraryId'])
         EmbyMusicArtistIds = common.get_Artist_Ids(Item, True, True, True)
         EmbyMusicGenreIds = common.get_MusicGenre_Ids(Item)
-        common.set_people(Item, self.SQLs, self.PersonObject, self.EmbyServer, IncrementalSync)
+        common.set_people(Item, self.SQLs, self.PersonObject, self.Library, IncrementalSync)
         self.SQLs["emby"].add_streamdata(Item['Id'], Item['MediaSources'])
         return EmbyMusicArtistIds, EmbyMusicGenreIds
 
@@ -147,7 +147,7 @@ class MusicVideo:
             Update = self.SQLs["video"].update_bookmark_playstate(KodiFileIdCurrent, Item['KodiPlayCount'], Item['KodiLastPlayedDate'], Item['KodiPlaybackPositionTicks'], Item['KodiRunTimeTicks'])
             self.SQLs["emby"].update_favourite(Item['IsFavorite'], Item['Id'], "MusicVideo")
 
-            if UpdateKodiFavorite:
+            if UpdateKodiFavorite and Item['Type'] != "Playlist":
                 self.set_favorite(Item['IsFavorite'], Item)
 
             if int(IncrementalSync):
@@ -216,7 +216,7 @@ class MusicVideo:
             if not Deleted:
                 Item['LibraryIds'] = common.del_Ids_SingleContent(LibraryIds, Item['LibraryId'])
                 self.SQLs["emby"].update_deleted_musicvideo(Item['Id'], Item['KodiItemId'], Item['KodiFileId'], Item['KodiPathId'], Item['LibraryIds'])
-                LibrarySyncedName = self.EmbyServer.library.LibrarySyncedNames[Item['LibraryId']]
+                LibrarySyncedName = self.Library.LibrarySyncedNames[Item['LibraryId']]
                 self.SQLs["video"].delete_library_links_tags(KodiItemIdCurrent, "musicvideo", LibrarySyncedName)
 
                 if int(IncrementalSync):
@@ -237,4 +237,4 @@ class MusicVideo:
         if IsFavorite and not Item['KodiArtwork']['favourite'] or "KodiFullPath" not in Item:
             Item['KodiFullPath'], Item['KodiArtwork']['favourite'], Item['Name'] = self.SQLs["video"].get_favoriteData(Item['KodiFileId'], Item['KodiItemId'], "musicvideo")
 
-        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Musicvideo", "Musicvideos", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, Item['KodiFullPath'], Item['Name'].replace('"', "'"), "media", 0),))
+        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Musicvideo", "Musicvideos", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, Item['KodiFullPath'], Item['Name'].replace('"', "'"), "media", 0),))

@@ -2,7 +2,7 @@ import json
 import threading
 import xbmcvfs
 import xbmc
-from helper import pluginmenu, utils, playerops, xmls, player, queue, deduplicate, backup, cache
+from helper import pluginmenu, utils, playerops, xmls, player, queue, deduplicate, backup, cache, artworkcache
 from database import dbio
 from emby import emby, httpcache
 from . import webservice, favorites, themes
@@ -45,7 +45,8 @@ class monitor(xbmc.Monitor):
         elif method == "Playlist.OnClear":
             player.PlayerEventsQueue.put((("clear", data),))
         elif method == "Other.playback_failed": # youtube plugin
-            player.PlayerEventsQueue.put((("stop", '{"end":true}'),))
+            player.PlayerEventsQueue.put((("stop", '{"end":true, "fail":true}'),))
+
         elif method == "Other.playback_init": # youtube plugin
             player.PlayerEventsQueue.put((("playerid", '{"player":{"playerid":1}}'),))
         elif method == "Other.playback_started": # youtube plugin
@@ -139,13 +140,13 @@ def SystemEvents():
         elif SystemEvent[0] == 'Other.manageserver':
             utils.start_thread(pluginmenu.manage_servers, (ServerConnect,))
         elif SystemEvent[0] == 'Other.databasereset':
-            utils.start_thread(pluginmenu.databasereset, (favorites, ))
+            utils.start_thread(pluginmenu.databasereset, ())
         elif SystemEvent[0] == 'Other.nodesreset':
             utils.start_thread(utils.nodesreset, ())
         elif SystemEvent[0] == 'Other.databasevacuummanual':
             utils.start_thread(dbio.DBVacuum, ())
         elif SystemEvent[0] == 'Other.factoryreset':
-            utils.start_thread(pluginmenu.factoryreset, (False, favorites))
+            utils.start_thread(pluginmenu.factoryreset, (False,))
         elif SystemEvent[0] == 'Other.downloadreset':
             utils.start_thread(pluginmenu.downloadreset, ("",))
         elif SystemEvent[0] == 'Other.themedownload':
@@ -323,17 +324,17 @@ def VideoLibrary_OnUpdate():
             if 'Progress' in EmbyUpdateItem:
                 if 'PlayCount' in EmbyUpdateItem:
                     EmbyServer.API.set_progress(EmbyId, EmbyUpdateItem['Progress'], EmbyUpdateItem['PlayCount'])
-                    UpdateUserDataCached = ((str(EmbyId), 0, "", EmbyUpdateItem['PlayCount'], False),)
+                    UpdateUserDataCached = ((str(EmbyId), 0, "", EmbyUpdateItem['PlayCount'], False, 0),)
                 else:
                     if not KodiDB:
                         KodiDB = dbio.DBOpenRO("video", "VideoLibrary_OnUpdate")
 
                     PlayCount = KodiDB.get_playcount(EmbyUpdateItem['KodiItemId'], EmbyUpdateItem['KodiType'])
                     EmbyServer.API.set_progress(EmbyId, EmbyUpdateItem['Progress'], PlayCount)
-                    UpdateUserDataCached = ((str(EmbyId), 0, "", PlayCount, False),)
+                    UpdateUserDataCached = ((str(EmbyId), 0, "", PlayCount, False, 0),)
             else:
                 EmbyServer.API.set_played(EmbyId, EmbyUpdateItem['PlayCount'])
-                UpdateUserDataCached = ((str(EmbyId), None, "", EmbyUpdateItem['PlayCount'], False),)
+                UpdateUserDataCached = ((str(EmbyId), None, "", EmbyUpdateItem['PlayCount'], False, 0),)
 
             cache.update_querycache_userdata(UpdateUserDataCached)
             xbmc.log(f"EMBY.hooks.monitor: VideoLibrary_OnUpdate ItemSkipUpdate: {utils.ItemSkipUpdate}", 1) # LOGINFO
@@ -571,7 +572,7 @@ def setup():
 
         return "stop"
 
-    pluginmenu.factoryreset(True, favorites)
+    pluginmenu.factoryreset(True)
     return False
 
 def wait_PlayerEventsQueue():
@@ -610,6 +611,7 @@ def StartUp():
         utils.start_thread(favorites.emby_change_Favorite, ())
         utils.start_thread(httpcache.clear, ())
         utils.start_thread(settingschanged, ())
+        utils.start_thread(artworkcache.delete_artworkcache_watchdog, ())
         XbmcMonitor = monitor()  # Init Monitor
         utils.start_thread(poll_Events, (XbmcMonitor,))
 

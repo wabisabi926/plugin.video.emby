@@ -12,6 +12,7 @@ def CacheAllEntries(urls, WorkerName):
     total = len(urls)
     ArtworkCacheItems = 1000 * [{}]
     ArtworkCacheIndex = 0
+    hasImagePrefix = False
 
     for IndexUrl, url in enumerate(urls):
         if utils.TextureCacheCancel:
@@ -24,7 +25,7 @@ def CacheAllEntries(urls, WorkerName):
 
             if utils.getFreeSpace(utils.FolderUserdataThumbnails) < 2097152: # check if free space below 2GB
                 utils.Dialog.notification(heading=utils.addon_name, message=utils.Translate(33429), icon=utils.icon, time=utils.displayMessage, sound=True)
-                xbmc.log("EMBY.helper.pluginmenu: Artwork cache: running out of space", 2) # LOGWARNING
+                xbmc.log("EMBY.helper.artworkcache: Artwork cache: running out of space", 2) # LOGWARNING
                 return
         else:
             ArtworkCacheIndex += 1
@@ -32,11 +33,25 @@ def CacheAllEntries(urls, WorkerName):
         if not url[0]:
             continue
 
-        Folder = url[0].split("/")
-        Data = url[0][url[0].rfind("/") + 1:].split("-")
+        if url[0].startswith("image://"):
+            if utils.DatabaseFiles["texture-version"] <= 13: # Kodi 21
+                CachePath = url[0]
+                HttpPath = utils.image_url_decode(url[0], True)
+            else:
+                CachePath = f"{url[0].rsplit('/', 1)[0]}/".lower() # Add trailing /
+                HttpPath = utils.image_url_decode(url[0], True)
+
+            hasImagePrefix = True
+        else:
+            CachePath = url[0]
+            HttpPath = url[0]
+
+        Folder = HttpPath.split("/")
+        Data = HttpPath.replace("|redirect-limit=1000&failonerror=false", "")
+        Data = Data[Data.rfind("/") + 1:].split("-")
 
         if len(Data) < 4 or len(Folder) < 5:
-            xbmc.log(f"EMBY.helper.pluginmenu: Artwork cache: Invalid item found {url}", 2) # LOGWARNING
+            xbmc.log(f"EMBY.helper.artworkcache: Artwork cache: Invalid item found {url[0]}", 2) # LOGWARNING
             continue
 
         ServerId = Folder[4]
@@ -45,11 +60,11 @@ def CacheAllEntries(urls, WorkerName):
         ImageTag = Data[4]
 
         if Data[3] not in EmbyArtworkIDs:
-            xbmc.log(f"EMBY.helper.pluginmenu: Artwork cache: Invalid (EmbyArtworkIDs) item found {url}", 2) # LOGWARNING
+            xbmc.log(f"EMBY.helper.artworkcache: Artwork cache: Invalid (EmbyArtworkIDs) item found {url[0]}", 2) # LOGWARNING
             continue
 
         ImageType = EmbyArtworkIDs[Data[3]]
-        Hash = utils.kodi_hash(url[0])
+        Hash = utils.kodi_hash(CachePath)
 
         if utils.SystemShutdown:
             return
@@ -69,11 +84,15 @@ def CacheAllEntries(urls, WorkerName):
             Path = f"{utils.FolderUserdataThumbnails}{cachedUrl}"
 
             if Width == 0:
-                xbmc.log(f"EMBY.helper.pluginmenu: Artwork cache: image not detected: {url[0]}", 2) # LOGWARNING
+                xbmc.log(f"EMBY.helper.artworkcache: Artwork cache: image not detected: {url[0]}", 2) # LOGWARNING
             else:
                 utils.writeFile(Path, ImageBinary)
                 Size = len(ImageBinary)
-                ArtworkCacheItems[ArtworkCacheIndex] = {'Url': url[0], 'Width': Width, 'Height': Height, 'Size': Size, 'Extension': ImageFormat, 'ImageHash': f"d0s{Size}", 'Path': Path, 'cachedUrl': cachedUrl}
+
+                if hasImagePrefix:
+                    ArtworkCacheItems[ArtworkCacheIndex] = {'Url': CachePath, 'Width': Width, 'Height': Height, 'Size': Size, 'Extension': ImageFormat, 'ImageHash': "", 'Path': Path, 'cachedUrl': cachedUrl}
+                else:
+                    ArtworkCacheItems[ArtworkCacheIndex] = {'Url': CachePath, 'Width': Width, 'Height': Height, 'Size': Size, 'Extension': ImageFormat, 'ImageHash': f"d0s{Size}", 'Path': Path, 'cachedUrl': cachedUrl}
 
             del ImageBinary
 
@@ -98,7 +117,7 @@ def get_image_metadata(ImageBinaryData, Hash):
     ImageBinaryDataSize = len(ImageBinaryData)
 
     if ImageBinaryDataSize < 10:
-        xbmc.log(f"EMBY.helper.pluginmenu: Artwork cache: invalid image size: {Hash} / {ImageBinaryDataSize}", 2) # LOGWARNING
+        xbmc.log(f"EMBY.helper.artworkcache: Artwork cache: invalid image size: {Hash} / {ImageBinaryDataSize}", 2) # LOGWARNING
         return width, height, imageformat
 
     # JPG
@@ -111,7 +130,7 @@ def get_image_metadata(ImageBinaryData, Hash):
             i += BlockLength
 
             if i >= ImageBinaryDataSize or ImageBinaryData[i] != 0xFF:
-                xbmc.log(f"EMBY.helper.pluginmenu: Artwork cache: invalid jpg: {Hash}", 2) # LOGWARNING
+                xbmc.log(f"EMBY.helper.artworkcache: Artwork cache: invalid jpg: {Hash}", 2) # LOGWARNING
                 break
 
             if ImageBinaryData[i + 1] >> 4 == 12: # 0xCX
@@ -125,7 +144,33 @@ def get_image_metadata(ImageBinaryData, Hash):
         imageformat = "png"
         width, height = struct.unpack('>ii', ImageBinaryData[16:24])
     else: # Not supported format
-        xbmc.log(f"EMBY.helper.pluginmenu: Artwork cache: invalid image format: {Hash}", 2) # LOGWARNING
+        xbmc.log(f"EMBY.helper.artworkcache: Artwork cache: invalid image format: {Hash}", 2) # LOGWARNING
 
-    if utils.DebugLog: xbmc.log(f"EMBY.helper.pluginmenu (DEBUG): Artwork cache image data: {width} / {height} / {Hash}", 1) # LOGDEBUG
+    if utils.DebugLog: xbmc.log(f"EMBY.helper.artworkcache (DEBUG): Artwork cache image data: {width} / {height} / {Hash}", 1) # LOGDEBUG
     return width, height, imageformat
+
+def delete_artworkcache_watchdog():
+    while True:
+        if utils.sleep(1):
+            return
+
+        delete_artworkcache()
+
+def delete_artworkcache():
+    with utils.SafeLock(utils.ArtworkDeleteLock):
+        if utils.ArtworkDelete:
+            SQLs = {}
+            dbio.DBOpenRW("texture", "artwork_cache", SQLs)
+            Urls = list(utils.ArtworkDelete)
+
+            for Index in range(0, len(Urls), 500):
+                Chunk = Urls[Index:Index + 500]
+                CachedUrls = SQLs['texture'].delete_textures(Chunk)
+
+                for CachedUrl in CachedUrls:
+                    Path = f"{utils.FolderUserdataThumbnails}{CachedUrl[0]}"
+                    utils.delFile(Path)
+                    utils.delFile(f"{Path.rsplit('.', 1)[0]}.dds")
+
+            dbio.DBCloseRW("texture", "artwork_cache", SQLs)
+            utils.ArtworkDelete.clear()

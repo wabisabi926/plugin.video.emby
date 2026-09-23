@@ -979,6 +979,20 @@ class EmbyDatabase:
                 if Data:
                     return {"KodiItemId": Data[0], "KodiFileId": "", "Type": EmbyTypeMod, "KodiParentId": "", "Name": Data[1], "EmbyLinkedId": Data[2]}
 
+            if EmbyTypeMod == "MusicAlbum":
+                self.cursor.execute("SELECT KodiId, LibraryIds FROM MusicAlbum WHERE EmbyId = ?", (EmbyId,))
+                Data = self.cursor.fetchone()
+
+                if Data:
+                    return {"KodiItemId": Data[0], "KodiFileId": "", "Type": EmbyTypeMod, "KodiParentId": "", "Name": "", "LibraryIds": Data[1]}
+
+            if EmbyTypeMod == "MusicArtist":
+                self.cursor.execute("SELECT KodiId, LibraryIds FROM MusicArtist WHERE EmbyId = ?", (EmbyId,))
+                Data = self.cursor.fetchone()
+
+                if Data:
+                    return {"KodiItemId": Data[0], "KodiFileId": "", "Type": EmbyTypeMod, "KodiParentId": "", "Name": "", "LibraryIds": Data[1]}
+
             self.cursor.execute(f"SELECT KodiId FROM {EmbyTypeMod} WHERE EmbyId = ?", (EmbyId,))
             Data = self.cursor.fetchone()
 
@@ -1310,18 +1324,51 @@ class EmbyDatabase:
         self.cursor.execute("SELECT EmbyId FROM Video WHERE EmbyParentId = ?", (EmbyParentId,))
         return self.cursor.fetchall()
 
-    def get_EmbyId_KodiId_ImageUrl_by_KodiId_EmbyType(self, KodiId, EmbyType):
-        if EmbyType == "MusicArtist":
-            self.cursor.execute("SELECT EmbyId, KodiId FROM MusicArtist WHERE KodiId LIKE ? OR KodiId LIKE ? OR KodiId LIKE ? OR KodiId LIKE ? OR KodiId LIKE ?", (f"{KodiId};%", f"%;{KodiId}", f"%;{KodiId},%", f",%{KodiId};%", f",%{KodiId},%"))
-        elif EmbyType == "MusicAlbum":
+    def get_EmbyId_KodiId_ImageUrl_by_KodiId_EmbyType(self, KodiId, EmbyType, ContentType):
+        if EmbyType == "MusicArtist" and ContentType == "video":
+            self.cursor.execute("SELECT EmbyId, KodiId, LibraryIds FROM MusicArtist WHERE ',' || substr(KodiId, instr(KodiId, ';') + 1) || ',' LIKE ?", (f"%,{KodiId},%",))
+            Data = self.cursor.fetchone()
+
+            if not Data:
+                return "", "", "", ""
+
+            return Data[0], Data[1], "", Data[2]
+
+        if EmbyType == "MusicArtist" and ContentType == "music":
+            self.cursor.execute("SELECT EmbyId, KodiId, LibraryIds FROM MusicArtist WHERE ',' || substr(KodiId, 1, instr(KodiId, ';') - 1) || ',' LIKE ?", (f"%,{KodiId},%",))
+            Data = self.cursor.fetchone()
+
+            if not Data:
+                return "", "", "", ""
+
+            return Data[0], Data[1], "", Data[2]
+
+        if EmbyType == "MusicGenre" and ContentType == "music":
+            self.cursor.execute("SELECT EmbyId, KodiId, EmbyArtwork, LibraryIds FROM MusicGenre WHERE KodiId LIKE ?", (f"{KodiId};%",))
+            Data = self.cursor.fetchone()
+
+            if not Data:
+                return "", "", "", ""
+
+            return Data[0], Data[1], Data[2], Data[3]
+
+        if EmbyType == "MusicGenre" and ContentType == "video":
+            self.cursor.execute("SELECT EmbyId, KodiId, EmbyArtwork, LibraryIds FROM MusicGenre WHERE KodiId LIKE ?", (f"%;{KodiId}",))
+            Data = self.cursor.fetchone()
+
+            if not Data:
+                return "", "", "", ""
+
+            return Data[0], Data[1], Data[2], Data[3]
+
+        if EmbyType == "MusicAlbum":
             self.cursor.execute("SELECT EmbyId, KodiId FROM MusicAlbum WHERE KodiId = ? OR KodiId LIKE ? OR KodiId LIKE ? OR KodiId LIKE ?", (KodiId, f"%,{KodiId}", f"{KodiId},%", f"%,{KodiId},%"))
-        elif EmbyType == "MusicGenre":
-            self.cursor.execute("SELECT EmbyId, KodiId, EmbyArtwork FROM MusicGenre WHERE KodiId LIKE ? OR KodiId LIKE ?", (f"%;{KodiId}", f"{KodiId};%"))
+
         elif EmbyType in ("Tag", "Genre", "Studio"):
             self.cursor.execute(f"SELECT EmbyId, KodiId, EmbyArtwork FROM {EmbyType} WHERE KodiId = ?", (KodiId,))
-        elif EmbyType == "PlaylistVideo":
+        elif EmbyType == "Playlist" and ContentType == "music":
             self.cursor.execute("SELECT EmbyId, KodiId, EmbyArtwork FROM Playlist WHERE KodiId LIKE ?", (f"{KodiId};%",))
-        elif EmbyType == "PlaylistAudio":
+        elif EmbyType == "Playlist" and ContentType == "video":
             self.cursor.execute("SELECT EmbyId, KodiId, EmbyArtwork FROM Playlist WHERE KodiId LIKE ?", (f"%;{KodiId}",))
         else:
             self.cursor.execute(f"SELECT EmbyId, KodiId FROM {EmbyType} WHERE KodiId = ?", (KodiId,))
@@ -1330,14 +1377,14 @@ class EmbyDatabase:
 
         if Data:
             if len(Data) == 3:
-                return Data[0], Data[1], Data[2]
+                return Data[0], Data[1], Data[2], ""
 
-            return Data[0], Data[1], ""
+            return Data[0], Data[1], "", ""
 
-        return "", "", ""
+        return "", "", "", ""
 
     def get_KodiId_ImageUrl_by_EmbyId_EmbyType(self, EmbyId, EmbyType):
-        if EmbyType in ("PlaylistVideo", "PlaylistAudio"):
+        if EmbyType == "Playlist":
             self.cursor.execute("SELECT KodiId, EmbyArtwork FROM Playlist WHERE EmbyId = ?", (EmbyId,))
         else:
             self.cursor.execute(f"SELECT KodiId FROM {EmbyType} WHERE EmbyId = ?", (EmbyId,))
@@ -1581,12 +1628,20 @@ class EmbyDatabase:
 
     # favorite infos
     def get_FavoriteInfos(self, Table):
-        if Table in ("Person", "MusicArtist", "Series", "Audio", "BoxSet", "MusicAlbum"):
+        if Table in ("MusicArtist", "MusicAlbum"):
+            self.cursor.execute(f"SELECT EmbyFavourite, KodiId, EmbyId, LibraryIds FROM {Table}")
+        elif Table in ("Person", "Series", "BoxSet"):
             self.cursor.execute(f"SELECT EmbyFavourite, KodiId, EmbyId FROM {Table}")
+        elif Table == "Audio":
+            self.cursor.execute(f"SELECT EmbyFavourite, KodiId, EmbyId, LibraryIds FROM {Table}")
         elif Table == "Season":
             self.cursor.execute("SELECT EmbyFavourite, KodiId, KodiParentId, EmbyId FROM Season")
-        elif Table in ("Movie", "Episode", "MusicVideo", "Video"):
+        elif Table in ("Movie", "Episode", "Video"):
             self.cursor.execute(f"SELECT EmbyFavourite, KodiFileId, KodiId, EmbyId FROM {Table}")
+        elif Table == "MusicVideo":
+            self.cursor.execute(f"SELECT EmbyFavourite, KodiFileId, KodiId, EmbyId, LibraryIds FROM {Table}")
+        elif Table == "MusicGenre":
+            self.cursor.execute(f"SELECT EmbyFavourite, KodiId, EmbyArtwork, EmbyId, LibraryIds FROM {Table}")
         else:
             self.cursor.execute(f"SELECT EmbyFavourite, KodiId, EmbyArtwork, EmbyId FROM {Table}")
 
@@ -1858,7 +1913,7 @@ class EmbyDatabase:
         self.cursor.execute(f"SELECT * FROM {EmbyType}")
         return self.cursor.fetchall()
 
-    def get_KodiId_by_EmbyId_and_LibraryId(self, EmbyId, EmbyType, EmbyLibraryId, EmbyServer):
+    def get_KodiId_by_EmbyId_and_LibraryId(self, EmbyId, EmbyType, EmbyLibraryId, LibrarySyncedKodiDBs):
         self.cursor.execute(f"SELECT KodiId, LibraryIds FROM {EmbyType} WHERE EmbyId = ?", (EmbyId,))
         Data = self.cursor.fetchone()
 
@@ -1866,8 +1921,8 @@ class EmbyDatabase:
             if EmbyType == "MusicArtist":
                 Id = f"{EmbyLibraryId}{EmbyType}"
 
-                if Id in EmbyServer.library.LibrarySyncedKodiDBs:
-                    KodiDB = EmbyServer.library.LibrarySyncedKodiDBs[Id]
+                if Id in LibrarySyncedKodiDBs:
+                    KodiDB = LibrarySyncedKodiDBs[Id]
 
                     if KodiDB == "video,music": # mixed content
                         return None, None
@@ -1882,7 +1937,7 @@ class EmbyDatabase:
                 return None, None
 
             if EmbyType in ("MusicAlbum", "Audio"):
-                if f"{EmbyLibraryId}Playlist" in EmbyServer.library.LibrarySyncedKodiDBs: # Request by Playlist library, accept any valid synced EmbyId
+                if f"{EmbyLibraryId}Playlist" in LibrarySyncedKodiDBs: # Request by Playlist library, accept any valid synced EmbyId
                     KodiIds = Data[0].split(",")
                     return KodiIds[0], "music"
 

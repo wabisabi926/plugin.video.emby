@@ -2,7 +2,7 @@ import threading
 import os
 import json
 import re
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from datetime import datetime, timezone
 
 try:
@@ -40,6 +40,7 @@ DEC_RE = re.compile(r"&amp;|&lt;|&gt;|&quot;|&apos;")
 AutoplaySettings = []
 FilesizeSuffixes = ('B', 'KB', 'MB', 'GB', 'TB')
 EmbyServers = {}
+EmbyServersBan = set()
 EmbyServerIds = []
 UpcomingLastQueryTicks = 0
 RemoteMode = False
@@ -251,7 +252,6 @@ AssignEpisodePostersToTVShowPoster = False
 sslverify = False
 AddonModePath = "dav://127.0.0.1:57342/"
 TranslationsCached = {}
-Playlists = (xbmc.PlayList(0), xbmc.PlayList(1))
 ScreenResolution = (1920, 1080)
 FavoriteQueue = None
 MusicartistPaging = 10000
@@ -299,6 +299,56 @@ noimagejpg = b''
 NextGenOnline = threading.Event()
 ProgressBars = [True, {}] # [ProgressbarsEnabled, {Header, Message, Value, ProgressBar}]
 ProgressBarsLock = threading.Lock()
+JsonId = 1
+ArtworkDelete = set()
+ArtworkDeleteLock = threading.Lock()
+
+# JsonRPC
+def SendJson(Method, Params, ForceBreak):
+    global JsonId
+    JsonId += 1
+    LogSend = False
+
+    # Keep " escapes but escape \
+    Params = Params.replace('\\"', "KEEPESPACES") # escape backslashes
+    Params = Params.replace("\\", "\\\\") # escape backslashes
+    Params = Params.replace('KEEPESPACES', '\\"') # escape backslashes
+
+    if Params:
+        JsonString = f'{{"jsonrpc": "2.0", "id": {JsonId}, "method": "{Method}", "params": {Params}}}'
+    else:
+        JsonString = f'{{"jsonrpc": "2.0", "id": {JsonId}, "method": "{Method}"}}'
+
+    for Index in range(55): # retry -> timeout 10 seconds
+        Ret = xbmc.executeJSONRPC(JsonString)
+
+        if not Ret: # Valid but not correct Kodi return value -> Kodi bug
+            if DebugLog: xbmc.log(f"Emby.helper.jsonrpc: Json no response: {JsonString}", 2) # LOGWARNING
+            return {}
+
+        Ret = json.loads(Ret)
+
+        if not Ret.get("error", False):
+            if DebugLog: xbmc.log(f"Emby.helper.jsonrpc (DEBUG): Json response: {JsonString} / {Ret}", 1) # LOGDEBUG
+            return Ret
+
+        if DebugLog: xbmc.log(f"Emby.helper.jsonrpc: Json error: {JsonString} / {Ret}", 3) # LOGERROR
+
+        if ForceBreak:
+            return {}
+
+        if not LogSend:
+            if DebugLog: xbmc.log(f"Emby.helper.jsonrpc: Json error, retry: {JsonString}", 2) # LOGWARNING
+            LogSend = True
+
+        if Index < 50: # 5 seconds rapidly
+            if sleep(0.1):
+                return {}
+        else: # after 5 seconds delay cycle by 1 second for the last 5 seconds
+            if sleep(1):
+                return {}
+
+    return {}
 
 # Progress bars
 def create_ProgressBar(TaskId, Header, Message):
@@ -440,55 +490,50 @@ def refresh_widgets(isVideo):
 
     if isVideo:
         if DebugLog: xbmc.log("EMBY.helper.utils: Refresh video started", 1)
-        query = '{"jsonrpc":"2.0","method":"VideoLibrary.Scan","params":{"showdialogs":false,"directory":"EMBY_widget_refresh_trigger"},"id":1}'
-        success = SendJson(query, True)
+        success = SendJson("VideoLibrary.Scan", '{"showdialogs":false,"directory":"EMBY_widget_refresh_trigger"}', True)
 
         if not success:
             with SafeLock(WidgetsRefreshLock):
                 WidgetRefresh['video'] = False
     else:
         if DebugLog: xbmc.log("EMBY.helper.utils: Refresh music started", 1)
-        query = '{"jsonrpc":"2.0","method":"AudioLibrary.Scan","params":{"showdialogs":false,"directory":"EMBY_widget_refresh_trigger"},"id":1}'
-        success = SendJson(query, True)
+        success = SendJson("AudioLibrary.Scan", '{"showdialogs":false,"directory":"EMBY_widget_refresh_trigger"}', True)
 
         if not success:
             with SafeLock(WidgetsRefreshLock):
                 WidgetRefresh['music'] = False
 
-def SendJson(JsonString, ForceBreak=False):
-    LogSend = False
-    JsonString = JsonString.replace("\\", "\\\\") # escape backslashes
+# image:// Kodi uses the jobqueue for http calls "async" -> prevents blocking stat requests.
+# image://specialtype@ forces Kodi to disable autorefresh cache write the path with image://specialtype@ prefix into the texture.db. Otherwise it would be unquoted to http://127.0.0.1 and written into texture.db
+# from xbmc code: image://[type@]<url_encoded_path>?options
+# Kodi 21 does not support custom specialtypes
 
-    for Index in range(55): # retry -> timeout 10 seconds
-        Ret = xbmc.executeJSONRPC(JsonString)
+def image_url_encode(url, Filename):
+    if DatabaseFiles["texture-version"] <= 13: # Kodi 21
+        url = f"{url}|redirect-limit=1000&failonerror=false"
+        return f"image://epg@{quote(url, safe='')}/{Filename}"
 
-        if not Ret: # Valid but not correct Kodi return value -> Kodi bug
-            if DebugLog: xbmc.log(f"Emby.helper.utils: Json no response: {JsonString}", 2) # LOGWARNING
-            return {}
+    url = f"{url}|redirect-limit=1000&failonerror=false"
+    return f"image://emby@{quote(url, safe='')}/{Filename}"
 
-        Ret = json.loads(Ret)
+def image_url_decode(url, KeepUrlParams=False):
+    imagePath, _ = unquote(url).rsplit("/", 1) # imagePath, urlFilename
 
-        if not Ret.get("error", False):
-            if DebugLog: xbmc.log(f"Emby.helper.utils (DEBUG): Json response: {JsonString} / {Ret}", 1) # LOGDEBUG
-            return Ret
+    if not KeepUrlParams:
+        imagePath = imagePath.replace("|redirect-limit=1000&failonerror=false", "")
 
-        if DebugLog: xbmc.log(f"Emby.helper.utils: Json error: {JsonString} / {Ret}", 3) # LOGERROR
+    if DatabaseFiles["texture-version"] <= 13: # Kodi 21
+        return imagePath.replace("image://epg@", "")
 
-        if ForceBreak:
-            return {}
+    return imagePath.replace("image://emby@", "")
 
-        if not LogSend:
-            if DebugLog: xbmc.log(f"Emby.helper.utils: Json error, retry: {JsonString}", 2) # LOGWARNING
-            LogSend = True
+# url encode text
+def image_text_encode(Text):
+    return quote(quote(Text.replace("-", " "), safe=''))
 
-        if Index < 50: # 5 seconds rapidly
-            if sleep(0.1):
-                return {}
-        else: # after 5 seconds delay cycle by 1 second for the last 5 seconds
-            if sleep(1):
-                return {}
-
-    return {}
+# url decode text
+def image_text_decode(Text):
+    return unquote(unquote(Text))
 
 def image_overlay(ImageTag, ServerId, EmbyID, ImageType, ImageIndex, OverlayText):
     if DebugLog: xbmc.log(f"EMBY.helper.utils (DEBUG): Add image text overlay: {EmbyID}", 1) # LOGDEBUG
@@ -575,7 +620,7 @@ def download_Icon(ItemId, ImageTag, ServerId, NodeName, Force):
     ItemId = str(ItemId).replace(MappingIds['Tag'], '') # Collection as Tags (Item Id)
 
     for IconExtension in IconExtensions:
-        FileExists = f"{FolderEmbyTemp}{ItemId}.{IconExtension}"
+        FileExists = f"{FolderEmbyTemp}{ServerId}-{ItemId}.{IconExtension}"
         Found = xbmcvfs.exists(FileExists)
 
         if Found:
@@ -595,7 +640,7 @@ def download_Icon(ItemId, ImageTag, ServerId, NodeName, Force):
                     break
 
         BinaryData, _, FileExtension = image_overlay(ImageTag, ServerId, ItemId, "Primary", 0, NodeName)
-        IconFile = f"{FolderEmbyTemp}{ItemId}.{FileExtension}"
+        IconFile = f"{FolderEmbyTemp}{ServerId}-{ItemId}.{FileExtension}"
         writeFile(IconFile, BinaryData)
     else:
         IconFile = FileExists
@@ -719,8 +764,10 @@ def renameFile(SourcePath, DestinationPath):
 
 def readFileBinary(Path):
     try:
-        with xbmcvfs.File(Path) as infile:
-            return infile.readBytes()
+        infile = xbmcvfs.File(Path)
+        data = infile.readBytes()
+        infile.close()
+        return data
     except Exception as Error:
         if DebugLog: xbmc.log(f"EMBY.helper.utils: readFileBinary ({Path}): {Error}", 2) # LOGWARNING
 
@@ -728,8 +775,10 @@ def readFileBinary(Path):
 
 def readFileString(Path):
     try:
-        with xbmcvfs.File(Path) as infile:
-            return infile.read()
+        infile = xbmcvfs.File(Path)
+        data = infile.read()
+        infile.close()
+        return data
     except Exception as Error:
         if DebugLog: xbmc.log(f"EMBY.helper.utils: readFileString ({Path}): {Error}", 2) # LOGWARNING
 
@@ -737,8 +786,9 @@ def readFileString(Path):
 
 def writeFile(Path, Data):
     try:
-        with xbmcvfs.File(Path, 'w') as outfile:
-            outfile.write(Data)
+        outfile = xbmcvfs.File(Path, 'w')
+        outfile.write(Data)
+        outfile.close()
     except Exception as Error:
         if DebugLog: xbmc.log(f"EMBY.helper.utils: writeFile ({Path}): {Error}", 2) # LOGWARNING
 
@@ -1275,12 +1325,12 @@ def InitSettings():
 def update_mode_settings():
     # disable file metadata extraction
     if not useDirectPaths and webservicemode in ("pathsubstitution", "webdav"):
-        SendJson('{"jsonrpc":"2.0", "id":1, "method":"Settings.SetSettingValue", "params": {"setting":"myvideos.extractflags","value":false}}', True)
-        SendJson('{"jsonrpc":"2.0", "id":1, "method":"Settings.SetSettingValue", "params": {"setting":"myvideos.extractthumb","value":false}}', True)
-        SendJson('{"jsonrpc":"2.0", "id":1, "method":"Settings.SetSettingValue", "params": {"setting":"myvideos.usetags","value":false}}', True)
-        SendJson('{"jsonrpc":"2.0", "id":1, "method":"Settings.SetSettingValue", "params": {"setting":"musicfiles.usetags","value":false}}', True)
-        SendJson('{"jsonrpc":"2.0", "id":1, "method":"Settings.SetSettingValue", "params": {"setting":"musicfiles.findremotethumbs","value":false}}', True)
-        SendJson('{"jsonrpc":"2.0", "id":1, "method":"Settings.SetSettingValue", "params": {"setting":"myvideos.extractchapterthumbs","value":true}}', True)
+        SendJson("Settings.SetSettingValue", '{"setting":"myvideos.extractflags","value":false}', True)
+        SendJson("Settings.SetSettingValue", '{"setting":"myvideos.extractthumb","value":false}', True)
+        SendJson("Settings.SetSettingValue", '{"setting":"myvideos.usetags","value":false}', True)
+        SendJson("Settings.SetSettingValue", '{"setting":"musicfiles.usetags","value":false}', True)
+        SendJson("Settings.SetSettingValue", '{"setting":"musicfiles.findremotethumbs","value":false}', True)
+        SendJson("Settings.SetSettingValue", '{"setting":"myvideos.extractchapterthumbs","value":true}', True)
 
 def set_syncdate(TimeStampConvert):
     if TimeStampConvert:
@@ -1400,7 +1450,7 @@ def decode_XML(Data):
     return DEC_RE.sub(lambda m: DEC_MAP[m.group(0)], Data)
 
 def check_iptvsimple():
-    if not SendJson('{"jsonrpc":"2.0","id":1,"method":"Addons.GetAddonDetails","params":{"addonid":"pvr.iptvsimple", "properties": ["version"]}}', True):
+    if not SendJson("Addons.GetAddonDetails", '{"addonid":"pvr.iptvsimple", "properties": ["version"]}', True):
         if DebugLog: xbmc.log("EMBY.helper.utils: iptv simple not found", 2) # LOGWARNING
         set_settings_bool("LiveTVEnabled", False)
         return False
@@ -1409,7 +1459,7 @@ def check_iptvsimple():
 
 def notify_event(Message, Data, SendOption):
     if NotifyEvents and SendOption:
-        SendJson(f'{{"jsonrpc":"2.0", "method":"JSONRPC.NotifyAll", "params":{{"sender": "emby-next-gen", "message": "{Message}", "data": {json.dumps(Data)}}}, "id": 1}}', True)
+        SendJson("JSONRPC.NotifyAll", f'{{"sender": "emby-next-gen", "message": "{Message}", "data": {json.dumps(Data)}}}', True)
 
 def start_thread(Object, Args):
     if SystemShutdown:
@@ -1479,7 +1529,7 @@ def close_dialog(DialogNameOrId):
             else:
                 break
 
-def ActivateWindow(WindowId, Path, DialogClose=False):
+def ActivateWindow(WindowId, Path, DialogClose=False, WaitForOpen=0):
     if DialogClose:
         close_dialog("all")
 
@@ -1488,7 +1538,14 @@ def ActivateWindow(WindowId, Path, DialogClose=False):
     else:
         xbmc.executebuiltin(f'ActivateWindow({WindowId})')
 
-    xbmc.log(f"EMBY.helper.playerops: [ ActivateWindow ] {WindowId}", 1) # LOGINFO
+    if WaitForOpen:
+        WindowId = xbmcgui.getCurrentWindowId()
+
+        while WindowId != WaitForOpen:
+            WindowId = xbmcgui.getCurrentWindowId()
+            sleep(0.1)
+
+    xbmc.log(f"EMBY.helper.utils: [ ActivateWindow ] {WindowId}", 1) # LOGINFO
 
 def refresh_DynamicNode():
     MenuPath = xbmc.getInfoLabel('Container.FolderPath')
@@ -1615,7 +1672,10 @@ for DatabaseFileFound in DatabaseFilesFound:
                 DatabaseFiles['addon-version'] = Version
 
 # Load playback version selection
-Result = SendJson('{"jsonrpc":"2.0","method":"Settings.GetSettingValue","params":{"setting": "myvideos.selectdefaultversion"},"id":1}', True).get("result", {})
+if DatabaseFiles["video-version"] >= 148: # >= Kodi 22
+    Result = SendJson("Settings.GetSettingValue", '{"setting": "videolibrary.similarvideoaction"}', True).get("result", {})
+else:
+    Result = SendJson("Settings.GetSettingValue", '{"setting": "myvideos.selectdefaultversion"}', True).get("result", {})
 
 if Result:
     SelectDefaultVideoversion = Result.get("value", {})

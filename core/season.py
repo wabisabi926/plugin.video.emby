@@ -4,10 +4,10 @@ from . import common, series
 
 
 class Season:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
-        self.SeriesObject = series.Series(EmbyServer, self.SQLs)
+        self.SeriesObject = series.Series(Library, SQLs)
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs
@@ -20,13 +20,13 @@ class Season:
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.season (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
 
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "Season"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Season"):
             return False
 
         common.set_PresentationUniqueKey(Item)
         common.set_overview(Item)
-        common.set_ItemsDependencies(Item, self.SQLs, self.SeriesObject, self.EmbyServer, "Series", IncrementalSync, Item['LibraryId'])
-        common.set_KodiArtwork(Item, self.EmbyServer.ServerData['ServerId'], False)
+        common.set_ItemsDependencies(Item, self.SQLs, self.SeriesObject, self.Library, "Series", IncrementalSync, Item['LibraryId'])
+        common.set_KodiArtwork(Item, self.Library.ServerData['ServerId'], False)
 
         if IncrementalSync and utils.ArtworkCacheIncremental:
             common.cache_artwork(Item['KodiArtwork'])
@@ -130,4 +130,4 @@ class Season:
             Item['KodiArtwork']['favourite'], Item['Name'], Item['IndexNumber'] = self.SQLs["video"].get_FavoriteSubcontent(Item['KodiItemId'], "season")
 
         if Item['Name']:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Season", "TV Shows", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/titles/{Item['KodiParentId']}/{Item['IndexNumber']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Season", "TV Shows", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/titles/{Item['KodiParentId']}/{Item['IndexNumber']}/", Item['Name'].replace('"', "'"), "window", 10025),))

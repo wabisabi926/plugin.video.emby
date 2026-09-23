@@ -4,8 +4,8 @@ from helper import utils
 from . import common
 
 class Photo:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
@@ -13,7 +13,7 @@ class Photo:
 
     def change(self, Item, _):
         EmbyItem = Item.copy()
-        common.set_path_filename(Item, self.EmbyServer.ServerData['ServerId'], None, False)
+        common.set_path_filename(Item, self.Library.ServerData['ServerId'], None, False)
         self.SQLs["emby"].add_reference_photo(Item['Id'], Item['LibraryId'], Item['ParentId'], Item['PresentationUniqueKey'], Item['Path'], Item['KodiFullPath'], json.dumps(EmbyItem))
         del EmbyItem
         if utils.DebugLog: xbmc.log(f"EMBY.core.photo (DEBUG): ADD OR REPLACE {Item['Id']}: {Item['Path']}", 1) # DEBUGLOG

@@ -622,7 +622,7 @@ def monitor_Themes():
                 continue
 
             # Check if item has changed
-            if KodiIdOld != KodiId or KodiTypeOld != KodiType:
+            if KodiIdOld != KodiId or KodiTypeOld != KodiType or (Theme['KodiParentId'] and Theme['KodiParentId'] != KodiId) or (Theme['KodiParentType'] and Theme['KodiParentType'] != KodiType):
                 KodiIdOld = KodiId
                 KodiTypeOld = KodiType
 

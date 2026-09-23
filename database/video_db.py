@@ -1086,9 +1086,63 @@ class VideoDatabase:
         self.cursor.execute("DELETE FROM streamdetails WHERE idFile = ?", (KodiFileId,))
 
     def add_streams(self, KodiFileId, videostream, audiostream, subtitlestream, runtime):
+        #FLAG_NONE = 0x0000
+        #FLAG_DEFAULT = 0x0001
+        #FLAG_DUB = 0x0002
+        #FLAG_ORIGINAL = 0x0004
+        #FLAG_COMMENT = 0x0008
+        #FLAG_LYRICS = 0x0010
+        #FLAG_KARAOKE = 0x0020
+        #FLAG_FORCED = 0x0040
+        #FLAG_HEARING_IMPAIRED = 0x0080
+        #FLAG_VISUAL_IMPAIRED = 0x0100
         SQLData = ()
+        self.cursor.execute("DELETE FROM streamdetails WHERE idFile = ?", (KodiFileId,))
 
-        if utils.DatabaseFiles["video-version"] >= 144:
+        if utils.DatabaseFiles["video-version"] >= 149:
+            for track in videostream:
+                Flags = 0x0000
+
+                if track['default']:
+                    Flags |= 0x0001
+
+                if track['hearingimpaired']:
+                    Flags |= 0x0080
+
+                SQLData += ((KodiFileId, 0, track['codec'], track['aspect'], track['width'], track['height'], runtime, track['stereomode'], track['language'], track['hdrtype'], None, None, None, None, track['hdrdetail'], 40, 2, Flags),)
+
+            for track in audiostream:
+                Flags = 0x0000
+
+                if track['default']:
+                    Flags |= 0x0001
+
+                if track['hearingimpaired']:
+                    Flags |= 0x0080
+
+                SQLData += ((KodiFileId, 1, None, None, None, None, None, None, None, None, track['codec'], track['channels'], track['language'], None, None, 40, 2, Flags),)
+
+            for track in subtitlestream:
+                Flags = 0x0000
+
+                if track['forced']:
+                    Flags |= 0x0040
+
+                if track['default']:
+                    Flags |= 0x0001
+
+                SQLData += ((KodiFileId, 2, None, None, None, None, None, None, None, None, None, None, None, track['language'], None, 40, 2, Flags),)
+        elif utils.DatabaseFiles["video-version"] >= 148:
+            for track in videostream:
+                SQLData += ((KodiFileId, 0, track['codec'], track['aspect'], track['width'], track['height'], runtime, track['stereomode'], track['language'], track['hdrtype'], None, None, None, None, track['hdrdetail'], 40, 2),)
+
+            for track in audiostream:
+                SQLData += ((KodiFileId, 1, None, None, None, None, None, None, None, None, track['codec'], track['channels'], track['language'], None, None, 40, 2),)
+
+            for track in subtitlestream:
+                if track['external'] == "0":
+                    SQLData += ((KodiFileId, 2, None, None, None, None, None, None, None, None, None, None, None, track['language'], None, 40, 2),)
+        elif utils.DatabaseFiles["video-version"] >= 144:
             for track in videostream:
                 SQLData += ((KodiFileId, 0, track['codec'], track['aspect'], track['width'], track['height'], runtime, track['stereomode'], track['language'], track['hdrtype'], None, None, None, None, track['hdrdetail']),)
 
@@ -1110,10 +1164,14 @@ class VideoDatabase:
                     SQLData += ((KodiFileId, 2, None, None, None, None, None, None, None, None, None, None, None, track['language']),)
 
         if SQLData:
-            if utils.DatabaseFiles["video-version"] >= 144:
-                self.cursor.executemany("INSERT OR REPLACE INTO streamdetails(idFile, iStreamType, strVideoCodec, fVideoAspect, iVideoWidth, iVideoHeight, iVideoDuration, strStereoMode, strVideoLanguage, strHdrType, strAudioCodec, iAudioChannels, strAudioLanguage, strSubtitleLanguage, strHdrDetail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", SQLData)
+            if utils.DatabaseFiles["video-version"] >= 149:
+                self.cursor.executemany("INSERT INTO streamdetails(idFile, iStreamType, strVideoCodec, fVideoAspect, iVideoWidth, iVideoHeight, iVideoDuration, strStereoMode, strVideoLanguage, strHdrType, strAudioCodec, iAudioChannels, strAudioLanguage, strSubtitleLanguage, strHdrDetail, iSource, iVersion, iFlags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", SQLData)
+            elif utils.DatabaseFiles["video-version"] >= 148:
+                self.cursor.executemany("INSERT INTO streamdetails(idFile, iStreamType, strVideoCodec, fVideoAspect, iVideoWidth, iVideoHeight, iVideoDuration, strStereoMode, strVideoLanguage, strHdrType, strAudioCodec, iAudioChannels, strAudioLanguage, strSubtitleLanguage, strHdrDetail, iSource, iVersion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", SQLData)
+            elif utils.DatabaseFiles["video-version"] >= 144:
+                self.cursor.executemany("INSERT INTO streamdetails(idFile, iStreamType, strVideoCodec, fVideoAspect, iVideoWidth, iVideoHeight, iVideoDuration, strStereoMode, strVideoLanguage, strHdrType, strAudioCodec, iAudioChannels, strAudioLanguage, strSubtitleLanguage, strHdrDetail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", SQLData)
             else:
-                self.cursor.executemany("INSERT OR REPLACE INTO streamdetails(idFile, iStreamType, strVideoCodec, fVideoAspect, iVideoWidth, iVideoHeight, iVideoDuration, strStereoMode, strVideoLanguage, strHdrType, strAudioCodec, iAudioChannels, strAudioLanguage, strSubtitleLanguage) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", SQLData)
+                self.cursor.executemany("INSERT INTO streamdetails(idFile, iStreamType, strVideoCodec, fVideoAspect, iVideoWidth, iVideoHeight, iVideoDuration, strStereoMode, strVideoLanguage, strHdrType, strAudioCodec, iAudioChannels, strAudioLanguage, strSubtitleLanguage) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", SQLData)
 
         del SQLData
 
@@ -1622,7 +1680,7 @@ class VideoDatabase:
         return Data
 
     def download_Subcontent(self, KodiEpisodeId, Download):
-        ArtworksNoUrlParam = ()
+        TextureDBUrls = ()
         self.cursor.execute("SELECT idShow, idSeason FROM episode WHERE idEpisode = ?", (KodiEpisodeId,))
         EpisodeAdded = self.cursor.fetchone()
 
@@ -1638,10 +1696,10 @@ class VideoDatabase:
 
             if SeasonComplete and Download:
                 self.update_Name(EpisodeAdded[1], "season", True)
-                ArtworksNoUrlParam += self.download_Artwork(EpisodeAdded[1], "season", True)
+                TextureDBUrls += self.download_Artwork(EpisodeAdded[1], "season", True)
             elif not SeasonComplete and not Download:
                 self.update_Name(EpisodeAdded[1], "season", False)
-                ArtworksNoUrlParam += self.download_Artwork(EpisodeAdded[1], "season", False)
+                TextureDBUrls += self.download_Artwork(EpisodeAdded[1], "season", False)
 
             TVShowComplete = True
             self.cursor.execute("SELECT c00 FROM episode WHERE idShow = ?", (EpisodeAdded[0],)) # get all episodes from season
@@ -1654,33 +1712,36 @@ class VideoDatabase:
 
             if TVShowComplete and Download:
                 self.update_Name(EpisodeAdded[0], "tvshow", True)
-                ArtworksNoUrlParam += self.download_Artwork(EpisodeAdded[0], "tvshow", True)
+                TextureDBUrls += self.download_Artwork(EpisodeAdded[0], "tvshow", True)
             elif not TVShowComplete and not Download:
                 self.update_Name(EpisodeAdded[0], "tvshow", False)
-                ArtworksNoUrlParam += self.download_Artwork(EpisodeAdded[0], "tvshow", False)
+                TextureDBUrls += self.download_Artwork(EpisodeAdded[0], "tvshow", False)
 
-        return ArtworksNoUrlParam
+        return TextureDBUrls
 
     def download_Artwork(self, KodiId, KodiType, Download):
-        ArtworksNoUrlParam = ()
+        TextureDBUrls = ()
         SQLData = ()
         ArtworksData = self.get_artworks(KodiId, KodiType)
 
         for ArtworkData in ArtworksData:
             if ArtworkData[1] in ("poster", "thumb", "landscape"):
                 if Download:
-                    UrlMod = f"{ArtworkData[2]}-download|redirect-limit=1000&failonerror=false"
+                    if ArtworkData[2].startswith("image://"):
+                        UrlMod = ArtworkData[2].replace('%7Credirect-limit%3D1000%26failonerror%3Dfalse', '-download%7Credirect-limit%3D1000%26failonerror%3Dfalse')
+                    else:
+                        UrlMod = f"{ArtworkData[2].replace('|redirect-limit=1000&failonerror=false', '')}-download|redirect-limit=1000&failonerror=false"
                 else:
-                    UrlMod = ArtworkData[2].replace("-download|redirect-limit=1000&failonerror=false", "")
+                    UrlMod = ArtworkData[2].replace("-download", "")
 
                 SQLData += ((UrlMod, ArtworkData[0]),)
-                ArtworksNoUrlParam += ((ArtworkData[2].replace("|redirect-limit=1000&failonerror=false", ""),),)
+                TextureDBUrls += ((ArtworkData[2],),)
 
         if SQLData:
             self.cursor.executemany("UPDATE art SET url = ? WHERE art_id = ?", SQLData)
 
         del SQLData
-        return ArtworksNoUrlParam
+        return TextureDBUrls
 
     def replace_Path_ContentItem(self, KodiId, KodiType, KodiPath, KodiFilePath):
         if KodiType == "episode":

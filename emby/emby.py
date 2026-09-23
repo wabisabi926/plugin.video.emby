@@ -5,9 +5,9 @@ import socket
 import xbmcvfs
 import xbmc
 from dialogs import serverconnect, usersconnect, loginconnect, loginmanual, servermanual
-from helper import utils, playerops, pluginmenu
+from helper import utils, playerops, pluginmenu, queue
 from database import library
-from hooks import favorites
+from hooks import websocket
 from . import views, api, http
 
 Disconnect = threading.Lock()
@@ -22,10 +22,19 @@ class EmbyServer:
         self.Firstrun = not bool(self.ServerSettings)
         self.ServerData = {'AccessToken': "", 'UserId': "", 'UserName': "", 'UserImageUrl': "", 'ServerName': "", 'ServerId': "", 'ServerUrl': "", 'EmbyConnectExchangeToken': "", 'EmbyConnectUserId': "", 'EmbyConnectUserName': "", 'EmbyConnectAccessToken': "", 'ManualAddress': "", 'RemoteAddress': "", 'LocalAddress': "" ,'AdditionalUsers': {}, "DeviceId": "", "ServerVersion": "", "ServerRemoved": False}
         self.ServerReconnecting = False
-        self.http = http.HTTP(self)
-        self.API = api.API(self)
-        self.Views = views.Views(self)
-        self.library = library.Library(self)
+        self.LibrarySynced = []
+        self.LibrarySyncedKodiDBs = {}
+        self.LibrarySyncedNames = {}
+        self.LibrarySyncedContent = {}
+        self.ViewItems = {}
+        self.WebsocketRunning = [False]
+        self.WebsocketMessageQueue = queue.Queue()
+        self.HTTPThreadsRunningCondition = threading.Condition(threading.Lock())
+        self.http = http.HTTP(self.ServerData, self.HTTPThreadsRunningCondition, self.WebsocketRunning, self.WebsocketMessageQueue)
+        self.API = api.API(self.ServerData, self.ViewItems, self.LibrarySyncedNames, self.LibrarySyncedContent, self.LibrarySyncedKodiDBs, self.EmbySession, self.http)
+        self.Views = views.Views(self.ServerData, self.ViewItems, self.LibrarySynced, self.API)
+        self.library = library.Library(self.ServerData, self.API, self.Views, self.LibrarySynced, self.LibrarySyncedNames, self.LibrarySyncedContent, self.LibrarySyncedKodiDBs)
+        self.Websocket = websocket.WebSocket(self.ServerData, self.HTTPThreadsRunningCondition, self.EmbySession, self.API, self.library, self.WebsocketRunning, self.WebsocketMessageQueue)
         self.Online = False
         self.MsgOffline = False
         xbmc.log("EMBY.emby.emby: ---[ INIT EMBYCLIENT: ]---", 1) # LOGINFO
@@ -87,6 +96,11 @@ class EmbyServer:
         playerops.init_RemoteClient(self.ServerData['ServerId'])
         self.Views.update_views()
         self.Views.update_nodes()
+
+        if utils.websocketenabled and not self.WebsocketRunning[0]:
+            self.WebsocketMessageQueue.clear()
+            utils.start_thread(self.Websocket.Message, ())
+
         self.http.start()
         utils.start_thread(self.library.KodiStartSync, (self.Firstrun,))  # start initial sync
         self.Firstrun = False
@@ -106,7 +120,7 @@ class EmbyServer:
             utils.update_SyncPause(self.library.ServerStartingId, True)
             utils.update_SyncPause(self.library.ServerBusyId, False)
             playerops.delete_RemoteClient(self.ServerData['ServerId'], [self.EmbySession[0]['Id']], True)
-            self.EmbySession = []
+            self.EmbySession.clear()
             self.Online = False
 
             with utils.SafeLock(utils.EmbyServerOnlineCondition):
@@ -115,6 +129,9 @@ class EmbyServer:
             self.ShutdownInProgress = False
         else:
             if utils.DebugLog: xbmc.log("EMBY.emby.emby (DEBUG): Emby client already closed", 1) # LOGDEBUG
+
+        if utils.websocketenabled:
+            self.WebsocketMessageQueue.put("QUIT")
 
         self.http.stop()
         xbmc.log(f"EMBY.emby.emby: ---<[ STOP EMBYCLIENT: {self.ServerData['ServerId']} ]---", 1) # LOGINFO
@@ -144,7 +161,7 @@ class EmbyServer:
                 LoadedServerSettings = json.loads(FileData)
 
                 if 'ServerId' in LoadedServerSettings and LoadedServerSettings['ServerId']: # file content is valid
-                    self.ServerData = LoadedServerSettings
+                    self.ServerData.update(LoadedServerSettings)
 
             utils.DatabaseFiles[self.ServerData['ServerId']] = xbmcvfs.translatePath(f"special://profile/Database/emby_{self.ServerData['ServerId']}.db")
         else:
@@ -229,6 +246,7 @@ class EmbyServer:
             if SignedIn:
                 self.save_credentials()
                 utils.EmbyServers[self.ServerData['ServerId']] = self
+                utils.EmbyServersBan.discard(self.ServerData['ServerId'])
 
                 if self.ServerData['ServerId'] not in utils.EmbyServerIds:
                     utils.EmbyServerIds.append(self.ServerData['ServerId'])
@@ -239,6 +257,7 @@ class EmbyServer:
 
         # re-establish connection
         utils.EmbyServers[self.ServerData['ServerId']] = self
+        utils.EmbyServersBan.discard(self.ServerData['ServerId'])
 
         if self.ServerData['ServerId'] not in utils.EmbyServerIds:
             utils.EmbyServerIds.append(self.ServerData['ServerId'])
@@ -269,7 +288,7 @@ class EmbyServer:
                         if utils.DebugLog: xbmc.log("EMBY.emby.emby (DEBUG): EstablishExistingConnection: init resync", 1) # LOGDEBUG
                         self.ServerData["ServerVersion"] = Resync
                         self.save_credentials()
-                        pluginmenu.factoryreset(True, favorites)
+                        pluginmenu.factoryreset(True)
                     elif SaveConfig:
                         if utils.DebugLog: xbmc.log("EMBY.emby.emby (DEBUG): EstablishExistingConnection: Save config", 1) # LOGDEBUG
                         self.save_credentials()
@@ -310,20 +329,26 @@ class EmbyServer:
                     utils.EmbyServers[self.ServerData['ServerId']].API.session_logout()
 
                 utils.EmbyServers[self.ServerData['ServerId']].stop()
+                utils.EmbyServersBan.add(self.ServerData['ServerId'])
                 del utils.EmbyServers[self.ServerData['ServerId']]
 
             utils.delFile(f"{utils.FolderAddonUserdata}servers_{self.ServerData['ServerId']}.json")
-            self.EmbySession = []
+            self.EmbySession.clear()
             self.Online = False
 
             with utils.SafeLock(utils.EmbyServerOnlineCondition):
                 utils.EmbyServerOnlineCondition.notify_all()
 
     def ServerHandshake(self):
-        self.EmbySession = self.API.get_device()
+        self.EmbySession.clear()
+        self.EmbySession.extend(self.API.get_device())
 
         if not self.EmbySession:
             xbmc.log(f"EMBY.emby.emby: ---[ SESSION ERROR EMBYCLIENT: {self.ServerData['ServerId']} ] {self.EmbySession} ---", 3) # LOGERROR
+
+            if utils.websocketenabled:
+                self.WebsocketMessageQueue.put("QUIT")
+
             self.http.stop()
             return False
 

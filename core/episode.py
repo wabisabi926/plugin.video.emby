@@ -4,23 +4,23 @@ from . import common, series, season, genre, studio, person
 
 
 class Episode:
-    def __init__(self, EmbyServer, SQLs, SeasonObject=None, SeriesObject=None):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs, SeasonObject=None, SeriesObject=None):
+        self.Library = Library
         self.SQLs = SQLs
 
         if SeriesObject:
             self.SeriesObject = SeriesObject
         else:
-            self.SeriesObject = series.Series(EmbyServer, self.SQLs)
+            self.SeriesObject = series.Series(Library, SQLs)
 
         if SeasonObject:
             self.SeasonObject = SeasonObject
         else:
-            self.SeasonObject = season.Season(EmbyServer, self.SQLs)
+            self.SeasonObject = season.Season(Library, SQLs)
 
-        self.GenreObject = genre.Genre(EmbyServer, self.SQLs)
-        self.StudioObject = studio.Studio(EmbyServer, self.SQLs)
-        self.PersonObject = person.Person(EmbyServer, self.SQLs)
+        self.GenreObject = genre.Genre(Library, SQLs)
+        self.StudioObject = studio.Studio(Library, SQLs)
+        self.PersonObject = person.Person(Library, SQLs)
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs
@@ -36,20 +36,20 @@ class Episode:
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.episode (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
 
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "Episode"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Episode"):
             return False
 
         common.swap_mediasources(Item)
         common.set_RunTimeTicks(Item)
         common.set_streams(Item)
-        common.set_chapters(Item, self.EmbyServer.ServerData['ServerId'])
-        common.set_MetaItems(Item, self.SQLs, self.GenreObject, self.EmbyServer, "Genre", "GenreItems", "", IncrementalSync, Item['LibraryId'])
-        common.set_MetaItems(Item, self.SQLs, self.StudioObject, self.EmbyServer, "Studio", "Studios", "", IncrementalSync, Item['LibraryId'])
+        common.set_chapters(Item, self.Library.ServerData['ServerId'])
+        common.set_MetaItems(Item, self.SQLs, self.GenreObject, self.Library, "Genre", "GenreItems", "", IncrementalSync, Item['LibraryId'])
+        common.set_MetaItems(Item, self.SQLs, self.StudioObject, self.Library, "Studio", "Studios", "", IncrementalSync, Item['LibraryId'])
         self.SQLs["emby"].add_streamdata(Item['Id'], Item['MediaSources'])
-        common.set_people(Item, self.SQLs, self.PersonObject, self.EmbyServer, IncrementalSync)
-        common.set_common(Item, self.EmbyServer.ServerData['ServerId'], False, IncrementalSync)
-        common.set_ItemsDependencies(Item, self.SQLs, self.SeriesObject, self.EmbyServer, "Series", IncrementalSync, Item['LibraryId'])
-        common.set_ItemsDependencies(Item, self.SQLs, self.SeasonObject, self.EmbyServer, "Season", IncrementalSync, Item['LibraryId'])
+        common.set_people(Item, self.SQLs, self.PersonObject, self.Library, IncrementalSync)
+        common.set_common(Item, self.Library.ServerData['ServerId'], False, IncrementalSync)
+        common.set_ItemsDependencies(Item, self.SQLs, self.SeriesObject, self.Library, "Series", IncrementalSync, Item['LibraryId'])
+        common.set_ItemsDependencies(Item, self.SQLs, self.SeasonObject, self.Library, "Season", IncrementalSync, Item['LibraryId'])
         Item['KodiParentId'] = self.SQLs["emby"].get_KodiId_by_EmbyId_EmbyType(Item['SeriesId'], "Series")
         KodiSeasonId = self.SQLs["emby"].get_KodiId_by_EmbyId_EmbyType(Item['SeasonId'], "Season")
         SeasonNumber = self.SQLs["video"].get_season_number(KodiSeasonId)
@@ -64,14 +64,14 @@ class Episode:
 
         if Item['UpdateItem']:
             common.delete_ContentItemReferences(Item['KodiItemId'], Item['KodiFileId'], Item.get('ExtraType', ""), self.SQLs, "episode", False)
-            common.set_path_filename(Item, self.EmbyServer.ServerData['ServerId'], None)
-            common.set_multipart(Item, self.EmbyServer)
+            common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
+            common.set_multipart(Item, self.Library)
             common.update_downloaded_info(Item, self.SQLs, "episode")
         else:
             Item['KodiItemId'] = self.SQLs["video"].create_entry_episode()
             Item['KodiFileId'] = self.SQLs["video"].create_entry_file()
-            common.set_path_filename(Item, self.EmbyServer.ServerData['ServerId'], None)
-            common.set_multipart(Item, self.EmbyServer)
+            common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
+            common.set_multipart(Item, self.Library)
             Item['KodiPathId'] = self.SQLs["video"].get_add_path(Item['KodiPath'], None)
 
         common.set_VideoCommon(Item['KodiItemId'], Item['KodiFileId'], Item, self.SQLs, "episode")
@@ -104,7 +104,7 @@ class Episode:
 
             utils.notify_event("content_add", {"EmbyId": f"{Item['Id']}", "KodiId": f"{Item['KodiItemId']}", "KodiType": "episode"}, IncrementalSync)
 
-        common.add_multiversion(Item, "Episode", self.EmbyServer, self.SQLs, self.EmbyServer.ServerData['ServerId'], None, None)
+        common.add_multiversion(Item, "Episode", self.Library, self.SQLs, None, None)
         return not Item['UpdateItem']
 
     # This updates: Favorite, LastPlayedDate, Playcount, PlaybackPositionTicks
@@ -154,4 +154,4 @@ class Episode:
         if IsFavorite and not Item['KodiArtwork']['favourite'] or "Name" not in Item or "KodiFullPath" not in Item:
             Item['KodiFullPath'], Item['KodiArtwork']['favourite'], Item['Name'] = self.SQLs["video"].get_favoriteData(Item['KodiFileId'], Item['KodiItemId'], "episode")
 
-        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Episode", "TV Shows", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, Item['KodiFullPath'], Item['Name'].replace('"', "'"), "media", 0),))
+        utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Episode", "TV Shows", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, Item['KodiFullPath'], Item['Name'].replace('"', "'"), "media", 0),))

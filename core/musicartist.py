@@ -6,8 +6,8 @@ KodiDBs = ("music", "video")
 
 # General info: Same musicartists from different Emby libraries are duplicated in Kodi's database for unification
 class MusicArtist:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
         self.KodiDBMapping = ("music", "video") # Can be updated via library.py (worker_update)
 
@@ -15,12 +15,12 @@ class MusicArtist:
         self.SQLs = SQLs
 
     def change(self, Item, IncrementalSync):
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "MusicArtist"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "MusicArtist"):
             return False
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.musicartist (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
-        common.set_common(Item, self.EmbyServer.ServerData['ServerId'], False, IncrementalSync)
-        LibrarySyncedKodiDBs = self.EmbyServer.library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicArtist", "video,music")
+        common.set_common(Item, self.Library.ServerData['ServerId'], False, IncrementalSync)
+        LibrarySyncedKodiDBs = self.Library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicArtist", "video,music")
         NewItem = False
 
         if 'Genres' in Item:
@@ -96,7 +96,7 @@ class MusicArtist:
             if utils.DebugLog: xbmc.log(f"EMBY.core.musicartist (DEBUG): SKIP DELETE, LibraryIds not found {Item['Id']} / {Item['LibraryId']}", 1) # LOGDEBUG
             return
 
-        LibrarySyncedKodiDBs = self.EmbyServer.library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicArtist", "video,music")
+        LibrarySyncedKodiDBs = self.Library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicArtist", "video,music")
         KodiDBsUpdate = LibrarySyncedKodiDBs.split(",")
         KodiItemIds = common.get_Ids_MultiContent(Item['KodiItemId'])
         LibraryIds = common.get_Ids_MultiContent(Item['LibraryIds'])
@@ -108,11 +108,12 @@ class MusicArtist:
                 continue
 
             if Item['LibraryId'] in LibraryIds[Index]:
-                Item['LibraryIds'], IndexLibrary = common.del_Ids_MultiContent(LibraryIds, Item['LibraryId'], Index)
+                LibraryIdsUpdated, IndexLibrary = common.del_Ids_MultiContent(LibraryIds, Item['LibraryId'], Index)
                 KodiItemIdCurrent = KodiItemIds[Index][IndexLibrary]
                 isVideo = KodiDBs[Index] == "video"
                 isAudio = KodiDBs[Index] == "music"
                 self.set_favorite(False, Item, isVideo, isAudio)
+                Item['LibraryIds'] = LibraryIdsUpdated
                 Item['KodiItemId'], _ = common.del_Ids_MultiContent(KodiItemIds, KodiItemIdCurrent, Index)
                 self.SQLs[KodiDBs[Index]].del_musicartist(KodiItemIdCurrent)
 
@@ -125,7 +126,6 @@ class MusicArtist:
                     xbmc.log(f"EMBY.core.musicartist: DELETE ({KodiDBs[Index]}) [{KodiItemIdCurrent}] {Item['Id']} / {Item['LibraryId']}", 1) # LOGINFO
                 elif utils.DebugLog:
                     xbmc.log(f"EMBY.core.musicartist (DEBUG): DELETE ({KodiDBs[Index]}) [{KodiItemIdCurrent}] {Item['Id']} / {Item['LibraryId']}", 1) # LOGDEBUG
-
 
         # Check if removed LibraryId is still present in one of the Kodi DBs. Happens on Mixed content libraries
         Deleted = False
@@ -154,18 +154,32 @@ class MusicArtist:
         return True
 
     def set_favorite(self, IsFavorite, Item, Video=True, Music=True): # Kodi Favorites
-        KodiItemIds = Item['KodiItemId'].split(";")
+        KodiItemIds = common.get_Ids_MultiContent(Item['KodiItemId'])
+
+# AAAAAAAAAAAAA
+
+        LibraryIds = common.get_Ids_MultiContent(Item.get('LibraryIds', ""))
+
+
+
+
 
         if KodiItemIds[1] and Video and "video" in self.SQLs and self.SQLs["video"]: # video
-            for KodiItemId in KodiItemIds[1].split(","): # musicvideo artists
+            for Index, KodiItemId in enumerate(KodiItemIds[1]): # musicvideo artists
+                if LibraryIds[1] and LibraryIds[1][Index] in self.Library.LibrarySyncedContent and "Playlist" in self.Library.LibrarySyncedContent[LibraryIds[1][Index]]: # Skip playlist subcontent
+                    continue
+
                 Name, FavoriteImage, hasMusicVideos, _, _ = self.SQLs["video"].get_People(KodiItemId)
 
                 if hasMusicVideos or not IsFavorite:
-                    utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Artist", "Musicvideos", Item['Id'], self.EmbyServer.ServerData['ServerId'], FavoriteImage), IsFavorite, f"videodb://musicvideos/artists/{KodiItemId}/", Name.replace('"', "'"), "window", 10025),))
+                    utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Artist", "Musicvideos", Item['Id'], self.Library.ServerData['ServerId'], FavoriteImage), IsFavorite, f"videodb://musicvideos/artists/{KodiItemId}/", Name.replace('"', "'"), "window", 10025),))
 
         if KodiItemIds[0] and Music and "music" in self.SQLs and self.SQLs["music"]: # music
-            for KodiItemId in KodiItemIds[0].split(","): # music artists
+            for Index, KodiItemId in enumerate(KodiItemIds[0]): # music artists
+                if LibraryIds[0] and LibraryIds[0][Index] in self.Library.LibrarySyncedContent and "Playlist" in self.Library.LibrarySyncedContent[LibraryIds[0][Index]]: # Skip playlist subcontent
+                    continue
+
                 Name, FavoriteImage, hasMusicArtists = self.SQLs["music"].get_Artist(KodiItemId)
 
                 if hasMusicArtists or not IsFavorite:
-                    utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Artist", "Songs", Item['Id'], self.EmbyServer.ServerData['ServerId'], FavoriteImage), IsFavorite, f"musicdb://artists/{KodiItemId}/", Name.replace('"', "'"), "window", 10502),))
+                    utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Artist", "Songs", Item['Id'], self.Library.ServerData['ServerId'], FavoriteImage), IsFavorite, f"musicdb://artists/{KodiItemId}/", Name.replace('"', "'"), "window", 10502),))

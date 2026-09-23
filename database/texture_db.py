@@ -44,3 +44,10 @@ class TextureDatabase:
             self.cursor.execute("UPDATE sizes SET size = ?, width = ?, height = ?, usecount = ?, lastusetime = ? WHERE idtexture = ?", (size, width, height, "1", KodiTime, idtexture))
         else:
             self.cursor.execute("INSERT INTO sizes (idtexture, size, width, height, usecount, lastusetime) VALUES (?, ?, ?, ?, ?, ?)", (idtexture, size, width, height, "1", KodiTime))
+
+    def delete_textures(self, Urls):
+        Placeholders = ",".join("?" * len(Urls))
+        self.cursor.execute(f"SELECT cachedurl FROM texture WHERE url IN ({Placeholders})", Urls)
+        CachedUrls = self.cursor.fetchall()
+        self.cursor.execute(f"DELETE FROM texture WHERE url IN ({Placeholders})", Urls)
+        return CachedUrls

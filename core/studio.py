@@ -3,19 +3,19 @@ from helper import utils
 from . import common
 
 class Studio:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs
 
     def change(self, Item, IncrementalSync):
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "Studio"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Studio"):
             return False
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.studio (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
-        common.set_Favorites_Artwork(Item, self.EmbyServer.ServerData['ServerId'])
+        common.set_Favorites_Artwork(Item, self.Library.ServerData['ServerId'])
 
         if Item['KodiItemId']: # existing item
             if Item['Name'] == "--NO INFO--": # Skip injected items updates
@@ -42,7 +42,7 @@ class Studio:
 
             utils.notify_event("content_add", {"EmbyId": Item['Id'], "KodiId": Item['KodiItemId'], "KodiType": "studio"}, IncrementalSync)
 
-        common.download_SubnodeIcon(Item, self.EmbyServer.ServerData['ServerId']) # Download icon
+        common.download_SubnodeIcon(Item, self.Library.ServerData['ServerId']) # Download icon
         return not Item['UpdateItem']
 
     def remove(self, Item, IncrementalSync):
@@ -60,7 +60,7 @@ class Studio:
             elif utils.DebugLog:
                 xbmc.log(f"EMBY.core.studio (DEBUG): DELETE {StudioName}: [{Item['KodiItemId']}] {Item['Id']}", 1) # LOGDEBUG
 
-            self.EmbyServer.Views.remove_synced_subnode(Item['Id'], Item['LibraryId'], "Studio", StudioName) # Delete genre xml node
+            self.Library.Views.remove_synced_subnode(Item['Id'], Item['LibraryId'], "Studio", StudioName) # Delete genre xml node
             utils.notify_event("content_remove", {"EmbyId": Item['Id'], "KodiId": Item['KodiItemId'], "KodiType": "studio"}, IncrementalSync)
 
     def userdata(self, Item, IncrementalSync, UpdateKodiFavorite):
@@ -95,10 +95,10 @@ class Studio:
             return
 
         if hasMovies or not IsFavorite:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Studio", "Movies", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://movies/studios/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Studio", "Movies", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://movies/studios/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
 
         if hasTVShows or not IsFavorite:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Studio", "TV Shows", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/studios/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Studio", "TV Shows", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://tvshows/studios/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
 
         if hasMusicVideos or not IsFavorite:
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Studio", "Musicvideos", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://musicvideos/studios/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Studio", "Musicvideos", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://musicvideos/studios/{Item['KodiItemId']}/", Item['Name'].replace('"', "'"), "window", 10025),))

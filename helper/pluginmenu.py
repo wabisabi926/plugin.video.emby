@@ -8,6 +8,7 @@ import xbmcplugin
 from database import dbio
 from emby import listitem
 from core import common
+from hooks import favorites
 from . import utils, playerops, xmls, artworkcache, cache
 
 SearchTerm = ""
@@ -360,11 +361,11 @@ def reload_Window(ContentRequest, WindowId, Handle, Id, query, ServerId, ParentI
 
     return False
 
-def remotepictures(Handle, playposition):
+def remotepictures(Handle):
     Handle = int(Handle)
 
     if not xbmcplugin.addDirectoryItems(Handle, (), 0):
-        if utils.DebugLog: xbmc.log("EMBY.helper.pluginmenu (DEBUG): remotepictures, invalid handle", 1) # LOGINFO
+        if utils.DebugLog: xbmc.log("EMBY.helper.pluginmenu (DEBUG): invalid handle", 1) # LOGINFO
         return
 
     ListItems = []
@@ -375,9 +376,6 @@ def remotepictures(Handle, playposition):
     xbmcplugin.addDirectoryItems(Handle, ListItems, len(ListItems))
     xbmcplugin.setContent(Handle, "images")
     xbmcplugin.endOfDirectory(Handle, cacheToDisc=False, updateListing=False)
-
-    if playposition != "-1":
-        utils.SendJson(f'{{"jsonrpc":"2.0","id":1,"method":"Player.Open","params":{{"item":{{"playlistid":2,"position":{playposition}}}}}}}')
 
 # Add or remove users from the default server session
 def AddUser(EmbyServer):
@@ -905,6 +903,7 @@ def get_next_episodes(Handle, libraryname):
         if utils.NextGenOnline.wait(timeout=0.1):
             if utils.SystemShutdown:
                 return
+
             break
 
     if "Episode" not in cache.QueryCache:
@@ -1151,6 +1150,7 @@ def get_recentlyadded_musicvideosalbums(Handle, LibraryName):
         if utils.NextGenOnline.wait(timeout=0.1):
             if utils.SystemShutdown:
                 return
+
             break
 
     if "MusicVideo" not in cache.QueryCache:
@@ -1288,7 +1288,7 @@ def downloadreset(Path=""):
     xbmc.log("EMBY.helper.pluginmenu: --<[ reset download ]", 1) # LOGINFO
 
 # Factory reset. wipes all db records etc.
-def factoryreset(KeepServerConfig, favoritesObj):
+def factoryreset(KeepServerConfig):
     xbmc.log("EMBY.helper.pluginmenu: [ factory reset ]", 2) # LOGWARNING
 
     if KeepServerConfig or utils.Dialog.yesno(heading=utils.addon_name, message=utils.Translate(33074)):
@@ -1312,7 +1312,7 @@ def factoryreset(KeepServerConfig, favoritesObj):
         utils.delete_playlists()
 
         # remove favorites
-        favoritesObj.set_Favorites(False)
+        favorites.set_Favorites(False)
 
         # delete downloaded content
         utils.delFolder(os.path.join(utils.DownloadPath, "EMBY-offline-content", ""))
@@ -1387,7 +1387,7 @@ def delete_database(Database):
             utils.delFile(f"special://profile/Database/{Filename}")
 
 # Reset both the emby database and the kodi database.
-def databasereset(favoritesObj):
+def databasereset():
     if not utils.Dialog.yesno(heading=utils.addon_name, message=utils.Translate(33074)):
         return
 
@@ -1396,7 +1396,7 @@ def databasereset(favoritesObj):
     DelArtwork = utils.Dialog.yesno(heading=utils.addon_name, message=utils.Translate(33086))
     DeleteSettings = utils.Dialog.yesno(heading=utils.addon_name, message=utils.Translate(33087))
     utils.close_dialog(10146) # addoninformation
-    favoritesObj.set_Favorites(False)
+    favorites.set_Favorites(False)
     SQLs = {}
     dbio.DBOpenRW("video", "databasereset", SQLs)
     SQLs["video"].common_db.delete_tables("Video")

@@ -4,11 +4,11 @@ from . import common, musicartist
 
 
 class MusicAlbum:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs.copy()
         self.SQLs['video'] = None
-        self.MusicArtistObject = musicartist.MusicArtist(self.EmbyServer, self.SQLs)
+        self.MusicArtistObject = musicartist.MusicArtist(Library, self.SQLs)
 
     def update_SQLs(self, SQLs): # When paused, databases are closed and re-opened -> Update database
         self.SQLs = SQLs.copy()
@@ -16,13 +16,13 @@ class MusicAlbum:
         self.MusicArtistObject.update_SQLs(self.SQLs)
 
     def change(self, Item, IncrementalSync):
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "MusicAlbum"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "MusicAlbum"):
             return False
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.musicalbum (DEBUG): Process item: {Item['Name']}", 1) # LOGDEBUG
-        common.set_MetaItems(Item, self.SQLs, None, self.EmbyServer, "Studio", 'Studios', "", IncrementalSync, None)
+        common.set_MetaItems(Item, self.SQLs, None, self.Library, "Studio", 'Studios', "", IncrementalSync, None)
         common.set_RunTimeTicks(Item)
-        common.set_common(Item, self.EmbyServer.ServerData['ServerId'], False, IncrementalSync)
+        common.set_common(Item, self.Library.ServerData['ServerId'], False, IncrementalSync)
 
         if int(Item['Id']) > 999999900:
             AlbumType = "single"
@@ -95,7 +95,7 @@ class MusicAlbum:
         return not Item['UpdateItem']
 
     def set_metadata(self, Item, IncrementalSync):
-        common.set_MetaItems(Item, self.SQLs, self.MusicArtistObject, self.EmbyServer, "MusicArtist", "AlbumArtists", "music", IncrementalSync, Item['LibraryId'])
+        common.set_MetaItems(Item, self.SQLs, self.MusicArtistObject, self.Library, "MusicArtist", "AlbumArtists", "music", IncrementalSync, Item['LibraryId'])
         EmbyMusicArtistIds = common.get_Artist_Ids(Item, False, True, False)
         common.get_MusicArtistInfos(Item, "AlbumArtists", self.SQLs)
         return EmbyMusicArtistIds
@@ -162,9 +162,13 @@ class MusicAlbum:
     def set_favorite(self, IsFavorite, Item):
         common.validate_FavoriteImage(Item)
         KodiItemIds = common.get_Ids_SingleContent(Item['KodiItemId'])
+        LibraryIds = common.get_Ids_SingleContent(Item.get('LibraryIds', ""))
 
-        for KodiItemId in KodiItemIds:
+        for Index, KodiItemId in enumerate(KodiItemIds):
+            if LibraryIds[Index] and LibraryIds[Index] in self.Library.LibrarySyncedContent and "Playlist" in self.Library.LibrarySyncedContent[LibraryIds[Index]]: # Skip playlist subcontent
+                continue
+
             if IsFavorite and not Item['KodiArtwork']['favourite'] or "Name" not in Item:
                 Item['KodiArtwork']['favourite'], Item['Name'] = self.SQLs["music"].get_FavoriteSubcontent(KodiItemId, "album")
 
-            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Album", "Songs", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"musicdb://albums/{KodiItemId}/", Item['Name'].replace('"', "'"), "window", 10502),))
+            utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Album", "Songs", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"musicdb://albums/{KodiItemId}/", Item['Name'].replace('"', "'"), "window", 10502),))

@@ -5,8 +5,8 @@ from . import common
 KodiDBs = ("music", "video")
 
 class MusicGenre:
-    def __init__(self, EmbyServer, SQLs):
-        self.EmbyServer = EmbyServer
+    def __init__(self, Library, SQLs):
+        self.Library = Library
         self.SQLs = SQLs
         self.KodiDBMapping = ("music", "video") # Can be updated via library.py (worker_update)
 
@@ -14,7 +14,7 @@ class MusicGenre:
         self.SQLs = SQLs
 
     def change(self, Item, IncrementalSync):
-        if not common.load_ExistingItem(Item, self.EmbyServer, self.SQLs["emby"], "MusicGenre"):
+        if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "MusicGenre"):
             return False
 
         if utils.DebugLog: xbmc.log(f"EMBY.core.musicgenre (DEBUG): Process item: {Item['Name']}", 1) # DEBUG
@@ -24,9 +24,9 @@ class MusicGenre:
         LibraryIds = common.get_Ids_MultiContent(Item['LibraryIds'])
 
         # Load additional data
-        LibrarySyncedKodiDBs = self.EmbyServer.library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicGenre", "video,music")
+        LibrarySyncedKodiDBs = self.Library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicGenre", "video,music")
         NewItem = False
-        common.set_Favorites_Artwork(Item, self.EmbyServer.ServerData['ServerId'])
+        common.set_Favorites_Artwork(Item, self.Library.ServerData['ServerId'])
 
         # Update all existing Kodi musicgenres
         if Item['Name'] != "--NO INFO--": # update not injected items updates
@@ -68,7 +68,7 @@ class MusicGenre:
         if NewItem:
             self.SQLs["emby"].add_reference_musicgenre(Item['Id'], Item['LibraryId'], Item['KodiItemId'], Item['KodiArtwork']['favourite'], Item['LibraryIds'])
 
-        common.download_SubnodeIcon(Item, self.EmbyServer.ServerData['ServerId']) # Download icon
+        common.download_SubnodeIcon(Item, self.Library.ServerData['ServerId']) # Download icon
         return not Item['UpdateItem']
 
     def remove(self, Item, IncrementalSync):
@@ -80,7 +80,7 @@ class MusicGenre:
 
         Deleted = self.SQLs["emby"].remove_item(Item['Id'], "MusicGenre", Item['LibraryId'])
         KodiItemIds = common.get_Ids_MultiContentUnique(Item['KodiItemId'])
-        LibrarySyncedKodiDBs = self.EmbyServer.library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicGenre", "video,music")
+        LibrarySyncedKodiDBs = self.Library.LibrarySyncedKodiDBs.get(f"{Item['LibraryId']}MusicGenre", "video,music")
         KodiDBsUpdate = LibrarySyncedKodiDBs.split(",")
         LibraryIds = common.get_Ids_MultiContent(Item['LibraryIds'])
 
@@ -91,7 +91,7 @@ class MusicGenre:
                 continue
 
             if Item['LibraryId'] in LibraryIds[IndexDatabase]:
-                Item['LibraryIds'], _ = common.del_Ids_MultiContent(LibraryIds, Item['LibraryId'], IndexDatabase)
+                LibraryIdsUpdated, _ = common.del_Ids_MultiContent(LibraryIds, Item['LibraryId'], IndexDatabase)
 
                 if not LibraryIds[IndexDatabase]:
                     KodiItemIdCurrent = KodiItemIds[IndexDatabase]
@@ -110,13 +110,15 @@ class MusicGenre:
                         elif utils.DebugLog:
                             xbmc.log(f"EMBY.core.musicgenre (DEBUG): DELETE PARTIAL ({KodiDBs[IndexDatabase]}) [{KodiItemIdCurrent}] {Item['Id']} / {Item['LibraryId']}", 1) # LOGDEBUG
 
+                Item['LibraryIds'] = LibraryIdsUpdated
+
         if not Deleted:
             self.SQLs['emby'].update_references(Item['Id'], Item['KodiItemId'], "MusicGenre", Item['LibraryIds'])
 
     def del_Genre(self, Item, KodiDB, KodiItemId, IncrementalSync):
         self.set_favorite(False, Item)
         GenreName = self.SQLs[KodiDB].delete_genre_by_Id(KodiItemId)
-        self.EmbyServer.Views.remove_synced_subnode(Item['Id'], Item['LibraryId'], f"MusicGenre{KodiDB}", GenreName) # Delete genre xml node
+        self.Library.Views.remove_synced_subnode(Item['Id'], Item['LibraryId'], f"MusicGenre{KodiDB}", GenreName) # Delete genre xml node
         utils.notify_event("content_remove", {"EmbyId": Item['Id'], "KodiId": KodiItemId, "KodiType": "genre"}, IncrementalSync)
 
     def userdata(self, Item, IncrementalSync, UpdateKodiFavorite):
@@ -143,19 +145,37 @@ class MusicGenre:
             Item['KodiArtwork']['favourite'] = self.SQLs["emby"].get_item_by_id(Item['Id'], "MusicGenre")[4]
 
         KodiItemIds = common.get_Ids_MultiContentUnique(Item['KodiItemId'])
+        LibraryIds = common.get_Ids_MultiContentUnique(Item.get('LibraryIds', ""))
 
         if KodiItemIds[0] and "music" in self.SQLs and self.SQLs["music"]: # music
-            Name, hasSongs = self.SQLs["music"].get_Genre_Name_hasSongs(KodiItemIds[0])
+            isPlaylist = False
 
-            if hasSongs or not IsFavorite:
-                utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Songs", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"musicdb://genres/{KodiItemIds[0]}/", Name.replace('"', "'"), "window", 10502),))
+            if LibraryIds[0] and LibraryIds[0] in self.Library.LibrarySyncedContent and "Playlist" in self.Library.LibrarySyncedContent[LibraryIds[0]]: # Skip playlist subcontent
+                isPlaylist = True
+
+            if not isPlaylist:
+                Name, hasSongs = self.SQLs["music"].get_Genre_Name_hasSongs(KodiItemIds[0])
+
+                if hasSongs or not IsFavorite:
+                    utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Songs", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"musicdb://genres/{KodiItemIds[0]}/", Name.replace('"', "'"), "window", 10502),))
 
             utils.notify_event("content_changed", {"EmbyId": Item['Id'], "KodiId": KodiItemIds[0], "KodiType": "genre"}, True)
 
         if KodiItemIds[1] and "video" in self.SQLs and self.SQLs["video"]: # video
-            Name, hasMusicVideos, _, _ = self.SQLs["video"].get_Genre_Name_hasMusicVideos_hasMovies_hasTVShows(KodiItemIds[1])
+            isPlaylist = False
 
-            if hasMusicVideos or not IsFavorite:
-                utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Musicvideos", Item['Id'], self.EmbyServer.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://musicvideos/genres/{KodiItemIds[1]}/", Name.replace('"', "'"), "window", 10025),))
+
+# AAAAAAAAAAAAAAAAAAAAAAA
+
+
+
+            if LibraryIds[1] and LibraryIds[1] in self.Library.LibrarySyncedContent and "Playlist" in self.Library.LibrarySyncedContent[LibraryIds[1]]: # Skip playlist subcontent
+                isPlaylist = True
+
+            if not isPlaylist:
+                Name, hasMusicVideos, _, _ = self.SQLs["video"].get_Genre_Name_hasMusicVideos_hasMovies_hasTVShows(KodiItemIds[1])
+
+                if hasMusicVideos or not IsFavorite:
+                    utils.FavoriteQueue.put(((common.set_Favorites_Artwork_Overlay("Genre", "Musicvideos", Item['Id'], self.Library.ServerData['ServerId'], Item['KodiArtwork']['favourite']), IsFavorite, f"videodb://musicvideos/genres/{KodiItemIds[1]}/", Name.replace('"', "'"), "window", 10025),))
 
             utils.notify_event("content_changed", {"EmbyId": Item['Id'], "KodiId": KodiItemIds[1], "KodiType": "genre"}, True)
