@@ -2409,7 +2409,7 @@
                 </setting>
                 <setting label="33720" id="BusyDialogClose" type="boolean" help="33721">
                     <level>3</level>
-                    <default>false</default>
+                    <default>true</default>
                     <control type="toggle"/>
                 </setting>
                 <setting label="33694" id="NotifyEvents" type="boolean" help="33695">
