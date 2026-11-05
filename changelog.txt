@@ -7,6 +7,14 @@ x12.5.1.2
 - 主评分选豆瓣但条目没有豆瓣分时，社区评分退回不标注。
 - 构建 Kodi uniqueid 时跳过 *Rating 这类 ProviderId。
 
+同步与元数据
+- 修复音乐艺术家收藏的子内容同步：多内容 ID 解析不再越界，缺失服务器 / 映射时安全跳过。
+- 启动同步按库隔离失败：单个库查询失败不影响其他库；失败时保留同步检查点，下次继续重试。
+- 单集 uniqueid 优先使用 TMDb，缺失时回退 TVDb。
+
+维护
+- 新增 GitHub Actions：core 分支版本号变化时自动打包并发布 Release，发布说明取自 changelog。
+
 x12.5.1.1
 ==========
 基于 Emby for Kodi Next Gen 12.5.1。
