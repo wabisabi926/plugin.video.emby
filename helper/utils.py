@@ -53,6 +53,7 @@ restartMsg = False
 enableContextSettingsOptions = False
 enableContextRefreshOptions = True
 autoSelectHighestPlaybackResolution = False
+communityratingsource = "tmdb"
 enableSkipIntro = False
 enableSkipCredits = False
 askSkipIntro = False
@@ -849,6 +850,7 @@ def InitSettings():
     global displayMessage
 
     load_settings('resumeJumpBack')
+    load_settings('communityratingsource')
     load_settings('MinimumSetup')
     load_settings_int('displayMessage')
     load_settings_int('startupDelay')

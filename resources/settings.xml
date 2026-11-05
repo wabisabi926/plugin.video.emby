@@ -128,6 +128,22 @@
                     <control type="toggle"/>
                 </setting>
             </group>
+            <group id="4" label="33914">
+                <setting id="communityratingsource" type="string" label="33915" help="33916">
+                    <level>1</level>
+                    <default>tmdb</default>
+                    <constraints>
+                        <options>
+                            <option label="TMDb">tmdb</option>
+                            <option label="IMDb">imdb</option>
+                            <option label="Trakt">trakt</option>
+                            <option label="豆瓣">douban</option>
+                            <option label="不标注">default</option>
+                        </options>
+                    </constraints>
+                    <control format="string" type="spinner"/>
+                </setting>
+            </group>
         </category>
         <category id="network" label="33906" help="">
             <group id="1" label="33649">

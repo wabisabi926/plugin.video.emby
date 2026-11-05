@@ -90,7 +90,7 @@ class Episode:
         common.set_Director_links(Item['KodiItemId'], self.SQLs, "episode", Item["DirectorsItems"],
                                   PersonMappings)
         Item['KodiUniqueId'] = self.SQLs["video"].add_uniqueids(Item['KodiItemId'], Item['ProviderIds'], "episode", 'tvdb')
-        Item['KodiRatingId'] = self.SQLs["video"].add_ratings_multi(Item['KodiItemId'], "episode", common.get_Ratings(Item))
+        Item['KodiRatingId'] = self.SQLs["video"].add_ratings_multi(Item['KodiItemId'], "episode", common.get_Ratings(Item), common.get_PrimaryRatingType())
 
         if Item['UpdateItem']:
             self.SQLs["video"].update_episode(Item['KodiItemId'], Item['KodiFileId'], Item['Name'], Item['Overview'], Item['KodiRatingId'], Item['Writers'], Item['KodiPremiereDate'], Item['KodiArtwork']['thumb'], Item['KodiRunTimeTicks'], Item['Directors'], Item['ParentIndexNumber'], Item['IndexNumber'], Item['OriginalTitle'], Item['SortParentIndexNumber'], Item['SortIndexNumber'], Item['KodiPath'], Item['KodiFilename'], Item['KodiPathId'], Item['KodiUniqueId'], Item['KodiParentId'], KodiSeasonId, Item['KodiStackedFilename'], Item['KodiDateCreated'], Item['KodiFullPath'])

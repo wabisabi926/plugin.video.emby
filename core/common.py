@@ -617,13 +617,20 @@ def set_DateCreated(Item):
     else:
         Item['KodiDateCreated'] = None
 
+RatingSources = ("default", "tmdb", "imdb", "trakt", "douban")
+
+def get_PrimaryRatingType():
+    Source = getattr(utils, 'communityratingsource', 'tmdb')
+    return Source if Source in RatingSources else "tmdb"
+
 def get_Ratings(Item):
     Ratings = {}
+    PrimaryType = get_PrimaryRatingType()
     CommunityRating = Item.get('CommunityRating')
 
     if CommunityRating:
         try:
-            Ratings['default'] = min(max(float(CommunityRating), 0.0), 10.0)
+            Ratings[PrimaryType] = min(max(float(CommunityRating), 0.0), 10.0)
         except (TypeError, ValueError):
             pass
 

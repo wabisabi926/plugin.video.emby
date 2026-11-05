@@ -863,3 +863,15 @@ msgstr "维护工具"
 msgctxt "#33913"
 msgid "Reset"
 msgstr "重置"
+
+msgctxt "#33914"
+msgid "Ratings"
+msgstr "评分"
+
+msgctxt "#33915"
+msgid "Primary rating source"
+msgstr "主评分来源"
+
+msgctxt "#33916"
+msgid "Emby exposes a single CommunityRating value without its source. The default is TMDb; select the actual source used by your Emby library. Changes apply when items are next synced."
+msgstr "Emby 只提供一个 CommunityRating 数值，无法自动识别来源；默认 TMDb。请选择媒体库实际使用的评分来源。修改后需等条目下次同步才会改写。"

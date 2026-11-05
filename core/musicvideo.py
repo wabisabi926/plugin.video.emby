@@ -111,7 +111,7 @@ class MusicVideo:
         common.set_Actor_links(KodiItemIdCurrent, self.SQLs, "musicvideo", Item["CastItems"])
         common.set_Actor_MusicArtist_links(KodiItemIdCurrent, self.SQLs, "musicvideo", Item["ArtistItems"], Item['LibraryId'])
         self.SQLs["video"].add_uniqueids(KodiItemIdCurrent, Item['ProviderIds'], "musicvideo", 'imvdb')
-        self.SQLs["video"].add_ratings_multi(KodiItemIdCurrent, "musicvideo", common.get_Ratings(Item))
+        self.SQLs["video"].add_ratings_multi(KodiItemIdCurrent, "musicvideo", common.get_Ratings(Item), common.get_PrimaryRatingType())
 
     def userdata(self, Item, IncrementalSync, UpdateKodiFavorite):
         if not common.verify_KodiIds(Item, IncrementalSync, True):

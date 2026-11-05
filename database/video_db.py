@@ -1183,13 +1183,13 @@ class VideoDatabase:
 
 
     # ratings
-    ManagedRatingTypes = ("default", "tomatometerallcritics", "douban")
+    ManagedRatingTypes = ("default", "tmdb", "imdb", "trakt", "douban", "tomatometerallcritics")
 
     def delete_ratings(self, Media_id, media_type, All=True):
         if All:
             self.cursor.execute("DELETE FROM rating WHERE media_id = ? AND media_type = ?", (Media_id, media_type))
         else:
-            self.cursor.execute("DELETE FROM rating WHERE media_id = ? AND media_type = ? AND rating_type IN (?, ?, ?)", (Media_id, media_type) + self.ManagedRatingTypes)
+            self.cursor.execute("DELETE FROM rating WHERE media_id = ? AND media_type = ? AND rating_type IN (?, ?, ?, ?, ?, ?)", (Media_id, media_type) + self.ManagedRatingTypes)
 
     def add_ratings(self, KodiItemId, media_type, rating_type, Rating):
         if Rating:
@@ -1200,16 +1200,23 @@ class VideoDatabase:
 
         return None
 
-    def add_ratings_multi(self, KodiItemId, media_type, Ratings):
-        DefaultRatingId = None
+    def add_ratings_multi(self, KodiItemId, media_type, Ratings, PrimaryType="default"):
+        PrimaryRatingId = None
+        FirstRatingId = None
 
         for RatingType, Rating in Ratings.items():
             RatingId = self.add_ratings(KodiItemId, media_type, RatingType, Rating)
 
-            if RatingType == "default":
-                DefaultRatingId = RatingId
+            if RatingId is None:
+                continue
 
-        return DefaultRatingId
+            if FirstRatingId is None:
+                FirstRatingId = RatingId
+
+            if RatingType == PrimaryType:
+                PrimaryRatingId = RatingId
+
+        return PrimaryRatingId or FirstRatingId
 
     # uniqueid
     def delete_uniqueids(self, Media_id, media_type):

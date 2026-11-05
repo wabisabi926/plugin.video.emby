@@ -863,3 +863,15 @@ msgstr ""
 msgctxt "#33913"
 msgid "Reset"
 msgstr ""
+
+msgctxt "#33914"
+msgid "Ratings"
+msgstr ""
+
+msgctxt "#33915"
+msgid "Primary rating source"
+msgstr ""
+
+msgctxt "#33916"
+msgid "Emby exposes a single CommunityRating value without its source. The default is TMDb; select the actual source used by your Emby library. Changes apply when items are next synced."
+msgstr ""
