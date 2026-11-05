@@ -1,0 +1,114 @@
+name: Release addon
+
+on:
+  push:
+    branches: [core]
+    paths:
+      - addon.xml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compare version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ADDON_ID=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('addon.xml').getroot().get('id'))")
+          VERSION=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('addon.xml').getroot().get('version'))")
+          echo "addon_id=$ADDON_ID" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          BEFORE="${{ github.event.before }}"
+          PREV=""
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            PREV=$(git show "$BEFORE:addon.xml" 2>/dev/null \
+              | python3 -c "import sys, xml.etree.ElementTree as ET; print(ET.fromstring(sys.stdin.read()).get('version', ''))" \
+              || true)
+          fi
+          echo "previous=$PREV current=$VERSION"
+
+          TAG="${ADDON_ID}_${VERSION}"
+          if [ "$PREV" = "$VERSION" ]; then
+            echo "Version unchanged; skip release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skip release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract changelog
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          python3 - "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/notes.md" <<'PY'
+          import re
+          import sys
+
+          version = sys.argv[1]
+          lines = open("changelog.txt", encoding="utf-8").read().splitlines()
+          notes, active = [], False
+
+          for line in lines:
+              text = line.strip()
+              if re.fullmatch(r"x" + re.escape(version), text):
+                  active = True
+                  continue
+              if active and re.match(r"x\d", text):
+                  break
+              if active and not re.fullmatch(r"=+", text):
+                  notes.append(line)
+
+          while notes and not notes[0].strip():
+              notes.pop(0)
+          while notes and not notes[-1].strip():
+              notes.pop()
+
+          print("\n".join(notes) if notes else "See changelog.txt for details.")
+          PY
+
+          test -s "$RUNNER_TEMP/notes.md"
+
+      - name: Package addon
+        id: package
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          ADDON_ID="${{ steps.version.outputs.addon_id }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE="$RUNNER_TEMP/pkg/$ADDON_ID"
+          ASSET="$RUNNER_TEMP/${ADDON_ID}-${VERSION}.zip"
+
+          mkdir -p "$STAGE"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.trae' \
+            --exclude='.vscode' \
+            --exclude='.pytest_cache' \
+            --exclude='.gitignore' \
+            ./ "$STAGE"/
+
+          (cd "$RUNNER_TEMP/pkg" && zip -qr "$ASSET" "$ADDON_ID")
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.addon_id }}_${{ steps.version.outputs.version }}"
+          gh release create "$TAG" "${{ steps.package.outputs.asset }}" \
+            --title "x${{ steps.version.outputs.version }}" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --target "$GITHUB_SHA"
