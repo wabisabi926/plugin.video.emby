@@ -73,7 +73,7 @@ class Videos:
                                   PersonMappings)
         self.SQLs["video"].common_db.add_artwork(Item['KodiArtwork'], Item['KodiFileId'], "videoversion")
         Item['KodiUniqueId'] = self.SQLs["video"].add_uniqueids(Item['KodiItemId'], Item['ProviderIds'], "movie", 'imdb')
-        Item['KodiRatingId'] = self.SQLs["video"].add_ratings(Item['KodiItemId'], "movie", "default", Item['CommunityRating'])
+        Item['KodiRatingId'] = self.SQLs["video"].add_ratings_multi(Item['KodiItemId'], "movie", common.get_Ratings(Item))
 
         if not Item['ProductionLocations']:
             Item['ProductionLocations'].append("")

@@ -461,14 +461,16 @@ def set_RatingVideo(Item, InfoTags):
         Item['RatingType'] = Item['KodiMetadataRatingType']
 
     if 'Ratings' not in Item:
-        Item['Ratings'] = ()
+        Ratings = common.get_Ratings(Item)
 
-        if 'CommunityRating' in Item and Item['CommunityRating']:
-            Item['Ratings'] += (("default", float(Item['CommunityRating']), 0),)
-            Item['RatingType'] = "default"
-        elif 'KodiMetadataCommunityRating' in Item and Item['KodiMetadataCommunityRating']:
-            Item['Ratings'] += (("default", float(Item['KodiMetadataCommunityRating']), 0),)
-            Item['RatingType'] = "default"
+        if not Ratings and Item.get('KodiMetadataCommunityRating'):
+            try:
+                Ratings['default'] = float(Item['KodiMetadataCommunityRating'])
+            except (TypeError, ValueError):
+                pass
+
+        Item['Ratings'] = tuple((RatingType, Rating, 0) for RatingType, Rating in Ratings.items())
+        Item['RatingType'] = "default" if "default" in Ratings else next(iter(Ratings), "default")
 
     RatingData = {}
 

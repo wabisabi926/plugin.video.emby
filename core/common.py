@@ -617,6 +617,36 @@ def set_DateCreated(Item):
     else:
         Item['KodiDateCreated'] = None
 
+def get_Ratings(Item):
+    Ratings = {}
+    CommunityRating = Item.get('CommunityRating')
+
+    if CommunityRating:
+        try:
+            Ratings['default'] = min(max(float(CommunityRating), 0.0), 10.0)
+        except (TypeError, ValueError):
+            pass
+
+    CriticRating = Item.get('CriticRating')
+
+    if CriticRating:
+        try:
+            Ratings['tomatometerallcritics'] = min(max(float(CriticRating) / 10.0, 0.0), 10.0)
+        except (TypeError, ValueError):
+            pass
+
+    ProviderIds = Item.get('ProviderIds') or {}
+    DoubanRating = next((Value for Key, Value in ProviderIds.items()
+                         if str(Key).casefold() == "doubanrating"), None)
+
+    if DoubanRating:
+        try:
+            Ratings['douban'] = min(max(float(DoubanRating), 0.0), 10.0)
+        except (TypeError, ValueError):
+            pass
+
+    return Ratings
+
 def set_common(Item, ServerId, DynamicNode, IncrementalSync):
     Item['ProductionLocations'] = Item.get('ProductionLocations', [])
     set_DateCreated(Item)

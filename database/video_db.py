@@ -1183,11 +1183,13 @@ class VideoDatabase:
 
 
     # ratings
+    ManagedRatingTypes = ("default", "tomatometerallcritics", "douban")
+
     def delete_ratings(self, Media_id, media_type, All=True):
         if All:
             self.cursor.execute("DELETE FROM rating WHERE media_id = ? AND media_type = ?", (Media_id, media_type))
         else:
-            self.cursor.execute("DELETE FROM rating WHERE media_id = ? AND media_type = ? AND rating_type = ?", (Media_id, media_type, "default"))
+            self.cursor.execute("DELETE FROM rating WHERE media_id = ? AND media_type = ? AND rating_type IN (?, ?, ?)", (Media_id, media_type) + self.ManagedRatingTypes)
 
     def add_ratings(self, KodiItemId, media_type, rating_type, Rating):
         if Rating:
@@ -1197,6 +1199,17 @@ class VideoDatabase:
             return rating_id
 
         return None
+
+    def add_ratings_multi(self, KodiItemId, media_type, Ratings):
+        DefaultRatingId = None
+
+        for RatingType, Rating in Ratings.items():
+            RatingId = self.add_ratings(KodiItemId, media_type, RatingType, Rating)
+
+            if RatingType == "default":
+                DefaultRatingId = RatingId
+
+        return DefaultRatingId
 
     # uniqueid
     def delete_uniqueids(self, Media_id, media_type):
@@ -1213,6 +1226,10 @@ class VideoDatabase:
             Provider = Provider.lower()
 
             if Provider in ("facebook", "instagram", "official website", "x (twitter)", "twitter", "x", "fan site", "wikipedia"):
+                continue
+
+            # 第三方评分（如 DoubanRating）不是外部 ID，不能写入 uniqueid。
+            if Provider.endswith("rating"):
                 continue
 
             if Provider == DefaulId:
