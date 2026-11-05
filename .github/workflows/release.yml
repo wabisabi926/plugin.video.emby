@@ -91,13 +91,26 @@ jobs:
 
           mkdir -p "$STAGE"
           rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='.trae' \
-            --exclude='.vscode' \
-            --exclude='.pytest_cache' \
-            --exclude='.gitignore' \
-            ./ "$STAGE"/
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='*.pyo' \
+            --exclude='.DS_Store' \
+            --exclude='Thumbs.db' \
+            addon.xml \
+            changelog.txt \
+            core \
+            database \
+            dialogs \
+            emby \
+            fanart.jpg \
+            helper \
+            hooks \
+            icon.png \
+            kodi_icon.png \
+            LICENSE.txt \
+            resources \
+            service.py \
+            "$STAGE"/
 
           (cd "$RUNNER_TEMP/pkg" && zip -qr "$ASSET" "$ADDON_ID")
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
