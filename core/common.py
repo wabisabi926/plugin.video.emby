@@ -1603,6 +1603,9 @@ def get_Ids_MultiContent(IdsStr):
     if IdsStr:
         Ids = IdsStr.split(";")
 
+        if len(Ids) < 2:
+            Ids += [""] * (2 - len(Ids))
+
         if Ids[0]:
             Ids[0] = Ids[0].split(",")
         else:
@@ -1654,6 +1657,9 @@ def del_Ids_SingleContent(Ids, Id):
 def get_Ids_MultiContentUnique(IdsStr):
     if IdsStr:
         Ids = IdsStr.split(";")
+
+        if len(Ids) < 2:
+            Ids += [""] * (2 - len(Ids))
     else:
         Ids = ["", ""]
 

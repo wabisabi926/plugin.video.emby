@@ -70,6 +70,7 @@ def monitor_Favorites():
                         ImageUrlFromDB = ""
                         KodiItemId = -1
                         KodiItemIdFromDB = ""
+                        LibraryIds = ""
                         Path, isPath = get_path(FavoriteChanged)
 
                         if not Path:
@@ -165,19 +166,19 @@ def monitor_Favorites():
                             ValidImage = FavoriteChanged["thumbnail"]
                             FolderIds = ValidImage.split("/")
 
-                            if len(FolderIds) >= 4:
+                            if len(FolderIds) >= 5:
                                 ServerId = FolderIds[4]
                         elif not ServerId and FavoriteChanged.get("thumbnail", "").startswith(("image://emby@dav%3A%2F%2F127.0.0.1%3A57342", "image://epg@dav%3A%2F%2F127.0.0.1%3A57342")):
                             ValidImage = utils.image_url_decode(FavoriteChanged["thumbnail"])
                             FolderIds = ValidImage.split("/")
 
-                            if len(FolderIds) >= 4:
+                            if len(FolderIds) >= 5:
                                 ServerId = FolderIds[4]
 
                         # get additional metadata
                         if not EmbyId or not EmbyType:
                             if KodiItemId == -1:
-                                if ValidImage:
+                                if ValidImage and ServerId in utils.EmbyServers:
                                     MetaIds = ValidImage.split("-")
 
                                     if len(MetaIds) >= 2:
@@ -199,7 +200,7 @@ def monitor_Favorites():
 
                                         if EmbyId:
                                             break
-                        else:
+                        elif ServerId in utils.EmbyServers:
                             embydb = dbio.DBOpenRO(ServerId, "Favorites subcontent metadata 3")
                             KodiItemIdFromDB, ImageUrlFromDB = embydb.get_KodiId_ImageUrl_by_EmbyId_EmbyType(EmbyId, EmbyType)
                             dbio.DBCloseRO(ServerId, "Favorites subcontent metadata 3")
@@ -211,41 +212,37 @@ def monitor_Favorites():
                             continue
 
                         if isAdded:
-                            if not isPath and EmbyType == "MusicArtist":
+                            if (not isPath and EmbyType == "MusicArtist" and KodiItemIdFromDB and
+                                    LibraryIds and ServerId in utils.EmbyServers):
                                 ImageUrlUpdated = ImageUrlFromDB or FavoriteChanged["thumbnail"]
-                                LibraryIds = common.get_Ids_MultiContent(LibraryIds)
+                                LibraryIdsParsed = common.get_Ids_MultiContent(LibraryIds)
                                 KodiItemIds = common.get_Ids_MultiContent(KodiItemIdFromDB)
+                                SyncedContent = utils.EmbyServers[ServerId].library.LibrarySyncedContent
 
-                                if KodiItemIds[0]:
-                                    for Index, KodiItemIdAudio in enumerate(KodiItemIds[0]):
-                                        if str(KodiItemId) != KodiItemIdAudio and LibraryIds[0][Index] in utils.EmbyServers[ServerId].library.LibrarySyncedContent and "Playlist" not in utils.EmbyServers[ServerId].library.LibrarySyncedContent[LibraryIds[0][Index]]: # Skip playlist subcontent, and KodiId is self
-                                            utils.FavoriteQueue.put((((ImageUrlUpdated or ""), True, f"musicdb://artists/{KodiItemIdAudio}/", FavoriteChanged["title"], "window", 10502),))
+                                for KodiItemIdAudio, LibraryIdAudio in zip(KodiItemIds[0], LibraryIdsParsed[0]):
+                                    if (str(KodiItemId) != KodiItemIdAudio and LibraryIdAudio in SyncedContent and
+                                            "Playlist" not in SyncedContent[LibraryIdAudio]): # Skip playlist subcontent, and KodiId is self
+                                        utils.FavoriteQueue.put((((ImageUrlUpdated or ""), True, f"musicdb://artists/{KodiItemIdAudio}/", FavoriteChanged["title"], "window", 10502),))
 
-                                if KodiItemIds[1]:
-                                    for Index, KodiItemIdVideo in enumerate(KodiItemIds[1]):
-                                        if str(KodiItemId) != KodiItemIdVideo and LibraryIds[1][Index] in utils.EmbyServers[ServerId].library.LibrarySyncedContent and "Playlist" not in utils.EmbyServers[ServerId].library.LibrarySyncedContent[LibraryIds[1][Index]]: # Skip playlist subcontent
-                                            utils.FavoriteQueue.put((((ImageUrlUpdated or ""), True, f"videodb://musicvideos/artists/{KodiItemIdVideo}/", FavoriteChanged["title"], "window", 10025),))
+                                for KodiItemIdVideo, LibraryIdVideo in zip(KodiItemIds[1], LibraryIdsParsed[1]):
+                                    if (str(KodiItemId) != KodiItemIdVideo and LibraryIdVideo in SyncedContent and
+                                            "Playlist" not in SyncedContent[LibraryIdVideo]): # Skip playlist subcontent
+                                        utils.FavoriteQueue.put((((ImageUrlUpdated or ""), True, f"videodb://musicvideos/artists/{KodiItemIdVideo}/", FavoriteChanged["title"], "window", 10025),))
 
                         else: # favorite removed
                             if not isPath:
                                 # remove additional existing favorite records for linked sub-content
                                 if EmbyType == "MusicArtist":
-                                    KodiItemIds = KodiItemIdFromDB.split(";")
+                                    KodiItemIds = common.get_Ids_MultiContent(KodiItemIdFromDB)
 
-                                    if KodiItemIds[0]:
-                                        KodiItemIdsAudio = KodiItemIds[0].split(",")
+                                    for KodiItemIdAudio in KodiItemIds[0]:
+                                        delete_favorite(None, FavoritesCurrent, f"musicdb://artists/{KodiItemIdAudio}/")
 
-                                        for KodiItemIdAudio in KodiItemIdsAudio:
-                                            delete_favorite(None, FavoritesCurrent, f"musicdb://artists/{KodiItemIdAudio}/")
-
-                                    if KodiItemIds[1]:
-                                        KodiItemIdsVideo = KodiItemIds[1].split(",")
-
-                                        for KodiItemIdVideo in KodiItemIdsVideo:
-                                            delete_favorite(None, FavoritesCurrent, f"videodb://musicvideos/artists/{KodiItemIdVideo}/")
+                                    for KodiItemIdVideo in KodiItemIds[1]:
+                                        delete_favorite(None, FavoritesCurrent, f"videodb://musicvideos/artists/{KodiItemIdVideo}/")
 
                         # Update Emby favorites
-                        if EmbyId:
+                        if EmbyId and ServerId in utils.EmbyServers:
                             utils.ItemSkipUpdate.append(str(EmbyId))
                             utils.EmbyServers[ServerId].API.favorite(EmbyId, isAdded)
 
