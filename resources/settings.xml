@@ -137,8 +137,8 @@
                             <option label="TMDb">tmdb</option>
                             <option label="IMDb">imdb</option>
                             <option label="Trakt">trakt</option>
-                            <option label="豆瓣">douban</option>
-                            <option label="不标注">default</option>
+                            <option label="33918">douban</option>
+                            <option label="33917">default</option>
                         </options>
                     </constraints>
                     <control format="string" type="spinner"/>

@@ -873,5 +873,13 @@ msgid "Primary rating source"
 msgstr "主评分来源"
 
 msgctxt "#33916"
-msgid "Emby exposes a single CommunityRating value without its source. The default is TMDb; select the actual source used by your Emby library. Changes apply when items are next synced."
-msgstr "Emby 只提供一个 CommunityRating 数值，无法自动识别来源；默认 TMDb。请选择媒体库实际使用的评分来源。修改后需等条目下次同步才会改写。"
+msgid "Emby provides a single community rating without source information. Select the source used by these libraries. Changes apply after the next sync."
+msgstr "Emby 仅提供社区评分，不含来源信息。请选择媒体库使用的评分来源，下次同步后生效。"
+
+msgctxt "#33917"
+msgid "Unspecified"
+msgstr "不标注"
+
+msgctxt "#33918"
+msgid "Douban"
+msgstr "豆瓣"

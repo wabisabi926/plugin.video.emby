@@ -873,5 +873,13 @@ msgid "Primary rating source"
 msgstr ""
 
 msgctxt "#33916"
-msgid "Emby exposes a single CommunityRating value without its source. The default is TMDb; select the actual source used by your Emby library. Changes apply when items are next synced."
+msgid "Emby provides a single community rating without source information. Select the source used by these libraries. Changes apply after the next sync."
+msgstr ""
+
+msgctxt "#33917"
+msgid "Unspecified"
+msgstr ""
+
+msgctxt "#33918"
+msgid "Douban"
 msgstr ""
