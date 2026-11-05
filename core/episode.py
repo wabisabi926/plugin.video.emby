@@ -89,7 +89,9 @@ class Episode:
                                 PersonMappings)
         common.set_Director_links(Item['KodiItemId'], self.SQLs, "episode", Item["DirectorsItems"],
                                   PersonMappings)
-        Item['KodiUniqueId'] = self.SQLs["video"].add_uniqueids(Item['KodiItemId'], Item['ProviderIds'], "episode", 'tvdb')
+        ProviderIds = Item['ProviderIds']
+        DefaultUniqueId = 'tmdb' if any(str(Key).casefold() == 'tmdb' and Value for Key, Value in ProviderIds.items()) else 'tvdb'
+        Item['KodiUniqueId'] = self.SQLs["video"].add_uniqueids(Item['KodiItemId'], ProviderIds, "episode", DefaultUniqueId)
         Item['KodiRatingId'] = self.SQLs["video"].add_ratings_multi(Item['KodiItemId'], "episode", common.get_Ratings(Item), common.get_PrimaryRatingType())
 
         if Item['UpdateItem']:
