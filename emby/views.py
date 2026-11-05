@@ -1,5 +1,9 @@
+import json
+import re
+import threading
 from urllib.parse import urlencode
 
+import xbmc
 import xbmcvfs
 from database import dbio
 from helper import utils
@@ -7,6 +11,9 @@ from helper import utils
 
 PLUGIN_PATH = "plugin://plugin.service.emby-next-gen/?"
 XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+ARTWORK_FOLDER = "special://profile/addon_data/plugin.service.emby-next-gen/libraryart/"
+ARTWORK_STATE = "special://profile/addon_data/plugin.service.emby-next-gen/libraryart_state.json"
+ArtworkExportLock = threading.Lock()
 PLAYLIST_NODE_FOLDERS = (
     "special://profile/library/music/emby_playlistsaudio_Playlists/",
     "special://profile/library/video/emby_playlistsvideo_Playlists/",
@@ -172,6 +179,7 @@ class Views:
         self.API = API
         self.ViewItems = ViewItems
         self.NodesSynced = []
+        self.ArtworkExportRunning = False
 
     def update_nodes(self, RemoveEmpty=False):
         Synced = {}
@@ -437,6 +445,128 @@ class Views:
                 IconPath = utils.image_url(self.ServerData['ServerId'], library['Id'], 'Primary', library['ImageTags']['Primary'], "Library")
 
             self.ViewItems[library['Id']] = [utils.decode_XML(library['Name']), library['ContentType'], IconPath]
+
+        if not self.ArtworkExportRunning:
+            self.ArtworkExportRunning = True
+            utils.start_thread(self.export_library_artwork, (Libraries,))
+
+    def export_library_artwork(self, Libraries):
+        with utils.SafeLock(ArtworkExportLock):
+            try:
+                self._export_library_artwork(Libraries)
+            except Exception as Error:
+                xbmc.log(f"EMBY.emby.views: Library artwork export failed: {Error}", xbmc.LOGERROR)
+            finally:
+                self.ArtworkExportRunning = False
+
+    def _export_library_artwork(self, Libraries):
+        if utils.SystemShutdown or not utils.mkDir(ARTWORK_FOLDER):
+            return
+
+        StateRaw = utils.readFileString(ARTWORK_STATE)
+
+        try:
+            State = json.loads(StateRaw) if StateRaw else {}
+
+            if not isinstance(State, dict):
+                State = {}
+        except (TypeError, ValueError):
+            State = {}
+
+        ServerId = str(self.ServerData['ServerId'])
+        Prefix = f"{ServerId}/"
+        SyncedIds = {str(Id) for Id, _, _, _ in self.LibrarySynced if str(Id) not in ("999999999", "999999998")}
+        CurrentIds = set()
+        Exported = 0
+        Skipped = 0
+        Removed = 0
+        StateChanged = False
+
+        for library in Libraries:
+            if utils.SystemShutdown:
+                break
+
+            LibraryId = str(library.get('Id', ""))
+
+            if not LibraryId or library.get('Type') == 'Channel' or LibraryId not in SyncedIds:
+                continue
+
+            CurrentIds.add(LibraryId)
+            Key = Prefix + LibraryId
+            Name = utils.decode_XML(library.get('Name') or LibraryId)
+            FileName = re.sub(r'[\\/:*?"<>|]', "_", Name).strip() or LibraryId
+            ImageTag = (library.get('ImageTags') or {}).get('Primary')
+            Entry = State.get(Key)
+
+            if not ImageTag:
+                if Entry:
+                    self._delete_library_artwork(Entry.get('File'), State)
+                    State.pop(Key, None)
+                    StateChanged = True
+                    Removed += 1
+
+                continue
+
+            Extension = Entry.get('File', "").rsplit('.', 1)[-1].lower() if Entry else ""
+            ExistingFile = f"{FileName}.{Extension or 'jpg'}"
+
+            if Entry and Entry.get('Tag') == ImageTag and Entry.get('File') == ExistingFile and Extension and xbmcvfs.exists(ARTWORK_FOLDER + ExistingFile):
+                Skipped += 1
+                continue
+
+            StatusCode, _, Payload = self.API.http.request("GET", f"Items/{LibraryId}/Images/Primary",
+                {'MaxWidth': 960, 'MaxHeight': 540, 'Quality': 90, 'Format': "jpg", 'tag': ImageTag}, {}, True, "", None, "")
+
+            if StatusCode != 200 or not isinstance(Payload, (bytes, bytearray)) or not Payload:
+                xbmc.log(f"EMBY.emby.views: Library artwork download failed: {LibraryId} / {StatusCode}", xbmc.LOGWARNING)
+                continue
+
+            if Payload[:2] == b'\xff\xd8':
+                NewFile = f"{FileName}.jpg"
+            elif Payload[:8] == b'\x89PNG\r\n\x1a\n':
+                NewFile = f"{FileName}.png"
+            else:
+                xbmc.log(f"EMBY.emby.views: Library artwork has unknown format: {LibraryId}", xbmc.LOGWARNING)
+                continue
+
+            NewPath = ARTWORK_FOLDER + NewFile
+            utils.writeFile(NewPath, bytes(Payload))
+
+            if not xbmcvfs.exists(NewPath):
+                xbmc.log(f"EMBY.emby.views: Library artwork write failed: {NewPath}", xbmc.LOGWARNING)
+                continue
+
+            if Entry and Entry.get('File') and Entry['File'] != NewFile:
+                OtherEntries = {K: V for K, V in State.items() if K != Key}
+                self._delete_library_artwork(Entry['File'], OtherEntries)
+
+            State[Key] = {"Tag": ImageTag, "File": NewFile}
+            StateChanged = True
+            Exported += 1
+
+        for Key in list(State):
+            if not Key.startswith(Prefix) or Key[len(Prefix):] in CurrentIds:
+                continue
+
+            Entry = State.pop(Key)
+            self._delete_library_artwork(Entry.get('File'), State)
+            StateChanged = True
+            Removed += 1
+
+        if StateChanged:
+            utils.writeFile(ARTWORK_STATE, json.dumps(State, ensure_ascii=False).encode("utf-8"))
+
+        if Exported or Removed:
+            xbmc.log(f"EMBY.emby.views: Library artwork updated: {Exported} exported, {Skipped} unchanged, {Removed} removed", xbmc.LOGINFO)
+
+    def _delete_library_artwork(self, FileName, State):
+        if not FileName or any(Entry.get('File') == FileName for Entry in State.values()):
+            return
+
+        Path = ARTWORK_FOLDER + FileName
+
+        if xbmcvfs.exists(Path):
+            utils.delFile(Path)
 
     def delete_node_by_id(self, LibraryId):
         if LibraryId not in self.ViewItems:
