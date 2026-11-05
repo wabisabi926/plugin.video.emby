@@ -106,6 +106,13 @@ class Library:
         SQLs["emby"].update_LastIncrementalSyncStart(TimestampUTC)
         self.close_EmbyDBRW("set_syncdate", SQLs)
 
+    def restore_syncdate(self, LastSyncTime, LastSyncTimeStart):
+        # Workers advance LastIncrementalSync even on a failed startup run.
+        SQLs = self.open_EmbyDBRW("restore_syncdate", True)
+        SQLs["emby"].update_LastIncrementalSync(LastSyncTime or "")
+        SQLs["emby"].update_LastIncrementalSyncStart(LastSyncTimeStart or "")
+        self.close_EmbyDBRW("restore_syncdate", SQLs)
+
     def load_LibrarySynced(self, SQLs):
         self.LibrarySynced.clear()
         self.LibrarySyncedKodiDBs.clear()
@@ -197,8 +204,8 @@ class Library:
             Queries.append((LibraryId, MediaType, Params))
 
         with closing(self.API.get_Changes(Queries)) as Changes:
-            for Library, (_, Items) in zip(Libraries, Changes):
-                yield (*Library, Items)
+            for Library, (_, Items, Error) in zip(Libraries, Changes):
+                yield (*Library, Items, Error)
 
     def KodiStartSync(self, Firstrun):  # Threaded by caller -> emby.py
 
@@ -235,6 +242,7 @@ class Library:
 
             dbio.DBCloseRO(self.ServerData['ServerId'], self.KodiStartSyncId)
             UpdateData = [[], []]
+            FailedChanges = []
 
             if utils.SystemShutdown:
                 return
@@ -255,11 +263,16 @@ class Library:
 
                 try:
                     with closing(self.get_startup_changes(LastSyncTime, LastSyncTimeStart)) as Changes:
-                        for LibrarySyncedId, _, LibrarySyncedEmbyType, Items in Changes:
+                        for LibrarySyncedId, _, LibrarySyncedEmbyType, Items, Error in Changes:
                             if utils.SystemShutdown:
                                 utils.close_ProgressBar(self.KodiStartSyncId)
                                 utils.update_SyncPause(self.ServerStartSyncId, False)
                                 return
+
+                            if Error is not None:
+                                xbmc.log(f"EMBY.database.library: Startup change query failed for {LibrarySyncedId}/{LibrarySyncedEmbyType}: {Error}", xbmc.LOGERROR)
+                                FailedChanges.append(f"{LibrarySyncedId}/{LibrarySyncedEmbyType}")
+                                continue
 
                             LibraryName = ""
                             ProgressBarIndex += 1
@@ -343,7 +356,13 @@ class Library:
             utils.update_SyncPause(self.ServerStartSyncId, False)
             self.RunJobs(False, True)
 
-        self.set_syncdate(NewSyncData)
+        # Never advance the checkpoint if a library change query failed; the
+        # successful libraries are still applied above and re-read next time.
+        if FailedChanges:
+            self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
+            xbmc.log(f"EMBY.database.library: Startup sync incomplete; checkpoint retained. Failed: {FailedChanges}", xbmc.LOGWARNING)
+        else:
+            self.set_syncdate(NewSyncData)
 
     # Userdata change is an high priority task
     def worker_userdata(self, IncrementalSync):

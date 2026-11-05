@@ -1,4 +1,5 @@
 import threading
+import xbmc
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from contextlib import ExitStack
@@ -376,9 +377,32 @@ class API:
         return Items.Items
 
     def get_Changes(self, Queries):
-        """Fetch bounded independent queries and yield in their original order."""
+        """Fetch bounded independent queries and yield in their original order.
+
+        A failed library query is retried once and then yielded as an error so
+        the other libraries can still be processed. Shutdown/cancellation is
+        still propagated immediately.
+        """
         Queries = iter(Queries)
         Abort = threading.Event()
+
+        def Resolve(Future):
+            while True:
+                if utils.SystemShutdown:
+                    raise InterruptedError("Change discovery cancelled")
+
+                try:
+                    return Future.result(timeout=0.1), None
+                except FutureTimeout:
+                    if not Future.done():
+                        continue
+
+                    try:
+                        return Future.result(), None
+                    except Exception as Error:
+                        return None, Error
+                except Exception as Error:
+                    return None, Error
 
         with ExitStack() as Connections:
             Pool = ThreadPoolExecutor(max_workers=paging.CHANGE_QUERY_WORKERS, thread_name_prefix="EmbyChanges")
@@ -398,20 +422,35 @@ class API:
 
                 while Pending:
                     Query, ConnectionId, Future = Pending.popleft()
+                    Items, Error = Resolve(Future)
 
-                    while True:
-                        if utils.SystemShutdown:
+                    if Error is not None:
+                        if utils.SystemShutdown or Abort.is_set():
                             raise InterruptedError("Change discovery cancelled")
 
-                        try:
-                            Items = Future.result(timeout=0.1)
-                            break
-                        except FutureTimeout:
-                            if Future.done():
-                                Items = Future.result()  # Propagate a worker's own TimeoutError.
-                                break
+                        xbmc.log(f"EMBY.emby.api: Change query failed, retrying: {Query} / {Error}", xbmc.LOGWARNING)
 
-                    yield Query, Items
+                        try:
+                            RetryConnection = Connections.enter_context(self.http.HTTP.query_connection(Abort))
+                            ConnectionIds.append(RetryConnection)
+                            Items = self.get_ItemChanges(Query, RetryConnection, Abort)
+                            Error = None
+                            ConnectionId = RetryConnection
+                        except Exception as RetryError:
+                            if utils.SystemShutdown or Abort.is_set():
+                                raise InterruptedError("Change discovery cancelled")
+
+                            Items = []
+                            Error = RetryError
+                            ConnectionId = ""  # Fall back to the default connection for the next query.
+
+                            try:
+                                ConnectionId = Connections.enter_context(self.http.HTTP.query_connection(Abort))
+                                ConnectionIds.append(ConnectionId)
+                            except Exception:
+                                pass
+
+                    yield Query, Items, Error
                     Query = next(Queries, None)
 
                     if Query is not None:
