@@ -1,21 +1,30 @@
+x12.5.1.2
+==========
+评分
+- 新增主评分来源设置（TMDb / IMDb / Trakt / 豆瓣 / 不标注），社区评分按所选类型写入。
+- 将 Emby 影评人评分同步为 tomatometerallcritics，覆盖电影、剧集、单集、音乐视频和其他视频。
+- 将 Emby 条目中的豆瓣评分同步为 douban 类型。
+- 主评分选豆瓣但条目没有豆瓣分时，社区评分退回不标注。
+- 构建 Kodi uniqueid 时跳过 *Rating 这类 ProviderId。
+
 x12.5.1.1
 ==========
-Based on Emby for Kodi Next Gen 12.5.1.
+基于 Emby for Kodi Next Gen 12.5.1。
 
-Playback
-- Use Emby static HTTP streams and follow original HTTP(S) media URLs. Retain direct ISO, Blu-ray and DVD paths.
-- Update unchanged movie version groups in place, preserving Kodi movie and file IDs, the selected default version and local stream details.
-- Sort sources by name with [Default] first. Resolve manual version selection from the selected Kodi item, remember episode choices and optionally prefer the highest resolution when no manual or remembered choice applies.
-- Respect current Kodi subtitle language and visibility settings, with an unknown-language external subtitle fallback and restoration of the existing selection when no match is found.
-- Use compact intro and credits skip prompts and correct the resume rewind unit conversion.
+播放
+- 使用 Emby 静态 HTTP 流，并跟随原始 HTTP(S) 媒体 URL；保留 ISO、蓝光与 DVD 直读路径。
+- 版本组无变化时原位更新，保留 Kodi 电影 / 文件 ID、默认版本和本地流信息。
+- 源按名称排序，[Default] 优先。手动选择版本时以所选 Kodi 条目为准，记住剧集选择；无手动或记忆选择时可优先最高分辨率。
+- 遵循 Kodi 当前字幕语言与可见性设置；未知语言外挂字幕回退，找不到匹配则恢复原选择。
+- 精简片头 / 片尾跳过提示，修正续播倒计时单位换算。
 
-Sync and metadata
-- Fetch startup changes with up to four persistent connections while preserving ordered processing and UTC sync checkpoints.
-- Centralize sync paging at 100 items by default and 1,000 for episodes, songs and music artists. Reduce repeated database reads and queue allocations during sync.
-- Restore live watched, resume and favourite updates when Emby omits the media type. Keep standard Emby casting and reconnect WebSocket sessions after server disconnects.
-- Use TMDb as the default movie and series ID and TVDb for episodes. Store Emby community scores as the generic default rating while preserving Kodi user ratings.
-- Load artwork and chapter images on demand using built-in size and quality profiles. Simplify artwork, cast and studio sync.
+同步与元数据
+- 启动同步最多使用四路持久连接，保持顺序处理与 UTC 同步检查点。
+- 同步分页统一为默认 100 条，单集、歌曲与音乐艺术家 1,000 条；减少同步期间重复数据库读取与队列分配。
+- Emby 未返回媒体类型时，恢复实时已看、续播与收藏更新；保持标准 Emby 投射，并在服务器断开后重连 WebSocket。
+- 电影与剧集默认使用 TMDb ID，单集使用 TVDb；社区评分存为 default 类型，保留 Kodi 用户评分。
+- 按需加载封面与章节图，使用内置尺寸和质量档；简化封面、演员与工作室同步。
 
-Scope and settings
-- Focus on media synced to Kodi. Remove dynamic browsing and search, watch parties, Live TV/PVR, photos, offline downloads, theme media, cinema trailers and transcoding.
-- Remove legacy playback modes and unused settings, actions and resources. Keep English and Simplified Chinese translations.
+范围与设置
+- 聚焦已同步到 Kodi 的媒体；移除动态浏览与搜索、一起看、直播 / PVR、照片、离线下载、主题媒体、影院预告和转码。
+- 移除旧播放模式及未使用的设置、动作与资源；保留英文与简体中文本地化。
