@@ -65,7 +65,7 @@ jobs:
               if re.fullmatch(r"x" + re.escape(version), text):
                   active = True
                   continue
-              if active and re.match(r"x\d", text):
+              if active and re.match(r"x?\d+\.\d", text):
                   break
               if active and not re.fullmatch(r"=+", text):
                   notes.append(line)
