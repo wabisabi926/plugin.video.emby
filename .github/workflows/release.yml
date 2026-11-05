@@ -38,7 +38,8 @@ jobs:
           fi
           echo "previous=$PREV current=$VERSION"
 
-          TAG="${ADDON_ID}_${VERSION}"
+          TAG="${ADDON_ID}-${GITHUB_REF_NAME}-${VERSION}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if [ "$PREV" = "$VERSION" ]; then
             echo "Version unchanged; skip release."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -120,8 +121,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ steps.version.outputs.addon_id }}_${{ steps.version.outputs.version }}"
-          gh release create "$TAG" "${{ steps.package.outputs.asset }}" \
-            --title "x${{ steps.version.outputs.version }}" \
+          gh release create "${{ steps.version.outputs.tag }}" "${{ steps.package.outputs.asset }}" \
+            --title "${{ steps.version.outputs.tag }}" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --target "$GITHUB_SHA"
