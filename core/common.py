@@ -628,27 +628,35 @@ def get_Ratings(Item):
     PrimaryType = get_PrimaryRatingType()
     CommunityRating = Item.get('CommunityRating')
 
+    ProviderIds = Item.get('ProviderIds') or {}
+    DoubanRating = next((Value for Key, Value in ProviderIds.items()
+                         if str(Key).casefold() == "doubanrating"), None)
+    DoubanValue = None
+
+    if DoubanRating:
+        try:
+            DoubanValue = min(max(float(DoubanRating), 0.0), 10.0) or None
+        except (TypeError, ValueError):
+            pass
+
+    # 主评分选豆瓣但条目没有真实豆瓣分时，退回不标注：CommunityRating 来自别的来源，不能标成豆瓣。
+    if PrimaryType == "douban" and DoubanValue is None:
+        PrimaryType = "default"
+
     if CommunityRating:
         try:
             Ratings[PrimaryType] = min(max(float(CommunityRating), 0.0), 10.0)
         except (TypeError, ValueError):
             pass
 
+    if DoubanValue is not None:
+        Ratings['douban'] = DoubanValue
+
     CriticRating = Item.get('CriticRating')
 
     if CriticRating:
         try:
             Ratings['tomatometerallcritics'] = min(max(float(CriticRating) / 10.0, 0.0), 10.0)
-        except (TypeError, ValueError):
-            pass
-
-    ProviderIds = Item.get('ProviderIds') or {}
-    DoubanRating = next((Value for Key, Value in ProviderIds.items()
-                         if str(Key).casefold() == "doubanrating"), None)
-
-    if DoubanRating:
-        try:
-            Ratings['douban'] = min(max(float(DoubanRating), 0.0), 10.0)
         except (TypeError, ValueError):
             pass
 

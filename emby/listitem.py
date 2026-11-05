@@ -465,8 +465,11 @@ def set_RatingVideo(Item, InfoTags):
         Ratings = common.get_Ratings(Item)
 
         if not Ratings and Item.get('KodiMetadataCommunityRating'):
+            # Kodi 自带元数据无法确认来源，选豆瓣时也不能标成豆瓣。
+            FallbackType = "default" if PrimaryType == "douban" else PrimaryType
+
             try:
-                Ratings[PrimaryType] = float(Item['KodiMetadataCommunityRating'])
+                Ratings[FallbackType] = float(Item['KodiMetadataCommunityRating'])
             except (TypeError, ValueError):
                 pass
 
