@@ -6,7 +6,7 @@
 
 | 项目 | 说明 |
 |---|---|
-| 当前版本 | 12.5.3 |
+| 当前版本 | 12.5.2 |
 | 上游基线 | 12.5.1（`next-gen-dev-python3`） |
 | 版本体系 | 12.5.2 起为本分支独立编号，不跟随上游 |
 | 发布渠道 | [Releases](https://github.com/wabisabi926/plugin.video.emby/releases) |
@@ -121,9 +121,9 @@ Emby 仅暴露单一 `CommunityRating`，不含来源信息。本分支将其拆
 版本号定义于 `addon.xml` 的 `version` 属性；`changelog.txt` 以 `x<版本号>` 作为段落起始标记：
 
 ```
-x12.5.3
+x12.5.2
 ==========
-评分开关
+评分
 - ...
 ```
 
