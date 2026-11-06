@@ -404,6 +404,9 @@ class API:
                 except Exception as Error:
                     return None, Error
 
+        def Reject(Reason):
+            raise RuntimeError(Reason)
+
         with ExitStack() as Connections:
             Pool = ThreadPoolExecutor(max_workers=paging.CHANGE_QUERY_WORKERS, thread_name_prefix="EmbyChanges")
             Pending = deque()
@@ -454,7 +457,11 @@ class API:
                     Query = next(Queries, None)
 
                     if Query is not None:
-                        Pending.append((Query, ConnectionId, Pool.submit(self.get_ItemChanges, Query, ConnectionId, Abort)))
+                        if ConnectionId:
+                            Pending.append((Query, ConnectionId, Pool.submit(self.get_ItemChanges, Query, ConnectionId, Abort)))
+                        else:
+                            # Without a private connection the page status is not validated; fail instead of dropping changes.
+                            Pending.append((Query, "", Pool.submit(Reject, "No change query connection available")))
             finally:
                 Abort.set()
 

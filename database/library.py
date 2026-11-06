@@ -323,6 +323,7 @@ class Library:
 
                 except Exception as Error:
                     xbmc.log(f"EMBY.database.library: Startup change discovery failed; checkpoint retained: {Error}", xbmc.LOGERROR)
+                    self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
                     utils.update_SyncPause(self.ServerStartSyncId, False)
                     return
                 finally:
