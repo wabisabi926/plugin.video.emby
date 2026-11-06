@@ -901,7 +901,7 @@ msgid "Douban rating"
 msgstr "豆瓣评分"
 
 msgctxt "#33923"
-msgid "Douban scores are supplied by a Douban scraper on the Emby side (e.g. StrmAssistant), usually in two forms: overriding the item's community rating, or writing ProviderIds.DoubanRating. When both exist, the ProviderIds value takes precedence. Without such a plugin, or when an item has no Douban score, nothing is written."
+msgid "Douban scores are supplied by a Douban scraper on the Emby side (e.g. StrmAssistant), usually in two forms: overriding the item's community rating, or writing ProviderIds.DoubanRating. When both exist, the ProviderIds value takes precedence. Without such a plugin, or when an item has no Douban score, nothing is written. Disabled by default."
 msgstr "豆瓣分由 Emby 端的豆瓣刮削插件（如 StrmAssistant 神医助手）提供，常见有两种形式：直接覆盖条目的社区评分，或写入 ProviderIds.DoubanRating。两者都存在时，本项优先采用 ProviderIds 的数值。未安装该插件或条目未刮到豆瓣分时，本项不产生评分。本项默认关闭。"
 
 msgctxt "#33924"
