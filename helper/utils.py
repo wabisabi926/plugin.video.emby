@@ -54,6 +54,9 @@ enableContextSettingsOptions = False
 enableContextRefreshOptions = True
 autoSelectHighestPlaybackResolution = False
 communityratingsource = "tmdb"
+syncratingcritic = True
+syncratingdouban = False
+syncratingmusic = True
 enableSkipIntro = False
 enableSkipCredits = False
 askSkipIntro = False
@@ -851,6 +854,9 @@ def InitSettings():
 
     load_settings('resumeJumpBack')
     load_settings('communityratingsource')
+    load_settings_bool('syncratingcritic')
+    load_settings_bool('syncratingdouban')
+    load_settings_bool('syncratingmusic')
     load_settings('MinimumSetup')
     load_settings_int('displayMessage')
     load_settings_int('startupDelay')

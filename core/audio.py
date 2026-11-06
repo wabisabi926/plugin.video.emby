@@ -77,7 +77,7 @@ class Audio:
             KodiAlbumIds, KodiAlbumLibraryIds = self.SQLs["emby"].get_MusicAlbum_by_EmbyId(UpdateItem['MusicAlbumId'])
             KodiAlbumId = KodiAlbumIds[KodiAlbumLibraryIds.index(UpdateItem['LibraryId'])]
             self.SQLs["music"].update_album_info_by_audio(KodiAlbumId, UpdateItem['ParentIndexNumber'], UpdateItem['IndexNumber'], bool(PlaylistId))
-            self.SQLs["music"].update_song(UpdateKodiItemIdCurrent, UpdateItem['KodiPathId'], KodiAlbumId, UpdateItem['ArtistItemsName'], UpdateItem['MusicGenre'], UpdateItem['Name'], UpdateItem['KodiDiscTrack'], UpdateItem['KodiRunTimeTicks'], UpdateItem['KodiPremiereDate'], UpdateItem['KodiProductionYear'], UpdateItem['KodiFilename'], UpdateItem['CommunityRating'], UpdateItem['Overview'], UpdateItem['KodiDateCreated'], BitRate, SampleRate, Channels, UpdateItem['ProviderIds']['MusicBrainzTrack'], UpdateItem['ArtistItemsSortName'], UpdateItem['KodiPath'], PlaylistId)
+            self.SQLs["music"].update_song(UpdateKodiItemIdCurrent, UpdateItem['KodiPathId'], KodiAlbumId, UpdateItem['ArtistItemsName'], UpdateItem['MusicGenre'], UpdateItem['Name'], UpdateItem['KodiDiscTrack'], UpdateItem['KodiRunTimeTicks'], UpdateItem['KodiPremiereDate'], UpdateItem['KodiProductionYear'], UpdateItem['KodiFilename'], common.get_MusicRating(UpdateItem), UpdateItem['Overview'], UpdateItem['KodiDateCreated'], BitRate, SampleRate, Channels, UpdateItem['ProviderIds']['MusicBrainzTrack'], UpdateItem['ArtistItemsSortName'], UpdateItem['KodiPath'], PlaylistId)
             self.set_links(UpdateItem, UpdateKodiItemIdCurrent)
             common.remove_old_EmbyMusicArtist(self.SQLs["emby"], UpdateItem['Id'], UpdateItem['LibraryId'], EmbyMusicArtistIds, self.MusicArtistObject, IncrementalSync)
             common.remove_old_EmbyMusicGenre(self.SQLs["emby"], UpdateItem['Id'], UpdateItem['LibraryId'], EmbyMusicGenreIds, self.MusicGenreObject, IncrementalSync)
@@ -92,7 +92,7 @@ class Audio:
             KodiAlbumIds, KodiAlbumLibraryIds = self.SQLs["emby"].get_MusicAlbum_by_EmbyId(Item['MusicAlbumId'])
             KodiAlbumId = KodiAlbumIds[KodiAlbumLibraryIds.index(Item['LibraryId'])]
             self.SQLs["music"].update_album_info_by_audio(KodiAlbumId, Item['ParentIndexNumber'], Item['IndexNumber'], bool(PlaylistId))
-            KodiItemIdCurrent = self.SQLs["music"].add_song(Item['KodiPathId'], KodiAlbumId, Item['ArtistItemsName'], Item['MusicGenre'], Item['Name'], Item['KodiDiscTrack'], Item['KodiRunTimeTicks'], Item['KodiPremiereDate'], Item['KodiProductionYear'], Item['KodiFilename'], Item['CommunityRating'], Item['Overview'], Item['KodiDateCreated'], BitRate, SampleRate, Channels, Item['ProviderIds']['MusicBrainzTrack'], Item['ArtistItemsSortName'], Item['LibraryId'])
+            KodiItemIdCurrent = self.SQLs["music"].add_song(Item['KodiPathId'], KodiAlbumId, Item['ArtistItemsName'], Item['MusicGenre'], Item['Name'], Item['KodiDiscTrack'], Item['KodiRunTimeTicks'], Item['KodiPremiereDate'], Item['KodiProductionYear'], Item['KodiFilename'], common.get_MusicRating(Item), Item['Overview'], Item['KodiDateCreated'], BitRate, SampleRate, Channels, Item['ProviderIds']['MusicBrainzTrack'], Item['ArtistItemsSortName'], Item['LibraryId'])
             Item['LibraryIds'] = common.add_Ids_SingleContent(LibraryIds, Item['LibraryId'])
             Item['KodiItemId'] = common.add_Ids_SingleContent(KodiItemIds, KodiItemIdCurrent)
             Item['KodiItemIdNew'] = KodiItemIdCurrent

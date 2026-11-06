@@ -18,7 +18,7 @@ build/
 /logs/
 /.codex-attachments/
 *.[mM][dD]
-!/README.md
+!README.md
 
 # Emby / Kodi local data & credentials
 __local__/

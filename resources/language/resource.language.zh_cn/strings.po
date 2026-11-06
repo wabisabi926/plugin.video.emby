@@ -869,17 +869,53 @@ msgid "Ratings"
 msgstr "评分"
 
 msgctxt "#33915"
-msgid "Primary rating source"
-msgstr "主评分来源"
+msgid "Community rating source"
+msgstr "社区评分来源"
 
 msgctxt "#33916"
-msgid "Emby provides a single community rating without source information. Select the source used by these libraries. Changes apply after the next sync."
-msgstr "Emby 仅提供社区评分，不含来源信息。请选择媒体库使用的评分来源，下次同步后生效。"
+msgid "Emby provides a single community rating without source information. If a Douban scraper (e.g. StrmAssistant) is installed on the Emby side, this rating is usually already the Douban score, so select \"Douban\" to label it correctly. \"Do not sync\" skips the community rating only; Douban and critic ratings are controlled by the switches below."
+msgstr "Emby 只提供一个社区评分，且不含来源信息。若 Emby 端装了豆瓣刮削插件（如神医助手），该评分通常已被替换为豆瓣分，此时选「豆瓣」即可正确标注。选「不同步」只跳过社区评分，下方豆瓣与影评人评分由各自开关控制。"
 
 msgctxt "#33917"
-msgid "Unspecified"
-msgstr "不标注"
+msgid "Unknown source"
+msgstr "未知来源"
 
 msgctxt "#33918"
 msgid "Douban"
 msgstr "豆瓣"
+
+msgctxt "#33919"
+msgid "Do not sync"
+msgstr "不同步"
+
+msgctxt "#33920"
+msgid "Critic rating"
+msgstr "影评人评分"
+
+msgctxt "#33921"
+msgid "Syncs the critic score (Rotten Tomatoes Tomatometer) from Emby on a 10-point scale. When disabled, no new critic ratings are written and existing ones are removed on the next item refresh."
+msgstr "同步 Emby 的影评人评分（烂番茄新鲜度），按 10 分制写入。关闭后不再写入，已有评分会在条目下次刷新时移除。"
+
+msgctxt "#33922"
+msgid "Douban rating"
+msgstr "豆瓣评分"
+
+msgctxt "#33923"
+msgid "Douban scores are supplied by a Douban scraper on the Emby side (e.g. StrmAssistant), usually in two forms: overriding the item's community rating, or writing ProviderIds.DoubanRating. When both exist, the ProviderIds value takes precedence. Without such a plugin, or when an item has no Douban score, nothing is written. Disabled by default."
+msgstr "豆瓣分由 Emby 端的豆瓣刮削插件（如 StrmAssistant 神医助手）提供，常见有两种形式：直接覆盖条目的社区评分，或写入 ProviderIds.DoubanRating。两者都存在时，本项优先采用 ProviderIds 的数值。未安装该插件或条目未刮到豆瓣分时，本项不产生评分。本项默认关闭。"
+
+msgctxt "#33924"
+msgid "Music rating"
+msgstr "音乐评分"
+
+msgctxt "#33925"
+msgid "Syncs album and song community ratings into the Kodi music library. When disabled, album and song ratings are no longer written."
+msgstr "同步专辑与歌曲的社区评分到 Kodi 音乐库。关闭后专辑和歌曲评分不再写入。"
+
+msgctxt "#33926"
+msgid "TMDb"
+msgstr "TMDb"
+
+msgctxt "#33927"
+msgid "IMDb"
+msgstr "IMDb"

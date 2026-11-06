@@ -48,7 +48,7 @@ class MusicAlbum:
             EmbyMusicArtistIds = self.set_metadata(UpdateItem, IncrementalSync)
             self.SQLs["music"].common_db.delete_artwork(UpdateKodiItemIdCurrent, "album")
             self.SQLs["music"].delete_link_album_artist(UpdateKodiItemIdCurrent)
-            self.SQLs["music"].update_album(UpdateKodiItemIdCurrent, UpdateItem['Name'], UpdateItem['AlbumArtistsName'], UpdateItem['KodiProductionYear'], UpdateItem['KodiPremiereDate'], KodiMusicGenre, UpdateItem['Overview'], UpdateItem['KodiArtwork']['thumb'], UpdateItem['CommunityRating'], UpdateItem['KodiLastScraped'], UpdateItem['KodiDateCreated'], UpdateItem['ProviderIds']['MusicBrainzAlbum'], UpdateItem['ProviderIds']['MusicBrainzReleaseGroup'], Compilation, UpdateItem['Studio'], UpdateItem['KodiRunTimeTicks'], UpdateItem['AlbumArtistsSortName'])
+            self.SQLs["music"].update_album(UpdateKodiItemIdCurrent, UpdateItem['Name'], UpdateItem['AlbumArtistsName'], UpdateItem['KodiProductionYear'], UpdateItem['KodiPremiereDate'], KodiMusicGenre, UpdateItem['Overview'], UpdateItem['KodiArtwork']['thumb'], common.get_MusicRating(UpdateItem), UpdateItem['KodiLastScraped'], UpdateItem['KodiDateCreated'], UpdateItem['ProviderIds']['MusicBrainzAlbum'], UpdateItem['ProviderIds']['MusicBrainzReleaseGroup'], Compilation, UpdateItem['Studio'], UpdateItem['KodiRunTimeTicks'], UpdateItem['AlbumArtistsSortName'])
             common.set_MusicArtist_links(UpdateKodiItemIdCurrent, self.SQLs, UpdateItem["AlbumArtists"], UpdateItem['LibraryId'], None)
             self.SQLs["music"].common_db.add_artwork(UpdateItem['KodiArtwork'], UpdateKodiItemIdCurrent, "album")
             common.remove_old_EmbyMusicArtist(self.SQLs["emby"], UpdateItem['Id'], UpdateItem['LibraryId'], EmbyMusicArtistIds, self.MusicArtistObject, IncrementalSync)
@@ -59,7 +59,7 @@ class MusicAlbum:
         # New library (insert new Kodi record)
         if Item['LibraryId'] not in LibraryIds:
             EmbyMusicArtistIds = self.set_metadata(Item, IncrementalSync)
-            KodiItemIdCurrent = self.SQLs["music"].add_album(Item['Name'], Item['AlbumArtistsName'], Item['KodiProductionYear'], Item['KodiPremiereDate'], KodiMusicGenre, Item['Overview'], Item['KodiArtwork']['thumb'], Item['CommunityRating'], Item['KodiLastScraped'], Item['KodiDateCreated'], Item['ProviderIds']['MusicBrainzAlbum'], Item['ProviderIds']['MusicBrainzReleaseGroup'], Compilation, Item['Studio'], Item['KodiRunTimeTicks'], Item['AlbumArtistsSortName'], Item['LibraryId'])
+            KodiItemIdCurrent = self.SQLs["music"].add_album(Item['Name'], Item['AlbumArtistsName'], Item['KodiProductionYear'], Item['KodiPremiereDate'], KodiMusicGenre, Item['Overview'], Item['KodiArtwork']['thumb'], common.get_MusicRating(Item), Item['KodiLastScraped'], Item['KodiDateCreated'], Item['ProviderIds']['MusicBrainzAlbum'], Item['ProviderIds']['MusicBrainzReleaseGroup'], Compilation, Item['Studio'], Item['KodiRunTimeTicks'], Item['AlbumArtistsSortName'], Item['LibraryId'])
             Item['LibraryIds'] = common.add_Ids_SingleContent(LibraryIds, Item['LibraryId'])
             Item['KodiItemId'] = common.add_Ids_SingleContent(KodiItemIds, KodiItemIdCurrent)
             self.SQLs["emby"].add_reference_musicalbum(Item['Id'], Item['LibraryId'], KodiItemIds, LibraryIds, EmbyMusicArtistIds)
