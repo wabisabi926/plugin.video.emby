@@ -911,3 +911,11 @@ msgstr "音乐评分"
 msgctxt "#33925"
 msgid "Syncs album and song community ratings into the Kodi music library. When disabled, album and song ratings are no longer written."
 msgstr "同步专辑与歌曲的社区评分到 Kodi 音乐库。关闭后专辑和歌曲评分不再写入。"
+
+msgctxt "#33926"
+msgid "TMDb"
+msgstr "TMDb"
+
+msgctxt "#33927"
+msgid "IMDb"
+msgstr "IMDb"

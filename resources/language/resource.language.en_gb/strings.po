@@ -911,3 +911,11 @@ msgstr ""
 msgctxt "#33925"
 msgid "Syncs album and song community ratings into the Kodi music library. When disabled, album and song ratings are no longer written."
 msgstr ""
+
+msgctxt "#33926"
+msgid "TMDb"
+msgstr "TMDb"
+
+msgctxt "#33927"
+msgid "IMDb"
+msgstr "IMDb"

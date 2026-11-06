@@ -76,9 +76,8 @@
                     <default>tmdb</default>
                     <constraints>
                         <options>
-                            <option label="TMDb">tmdb</option>
-                            <option label="IMDb">imdb</option>
-                            <option label="Trakt">trakt</option>
+                            <option label="33926">tmdb</option>
+                            <option label="33927">imdb</option>
                             <option label="33918">douban</option>
                             <option label="33917">default</option>
                             <option label="33919">none</option>
