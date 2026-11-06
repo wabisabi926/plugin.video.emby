@@ -1,5 +1,6 @@
 import threading
 import json
+import time
 from contextlib import closing
 import xbmc
 from core import movies, videos, musicvideo, folder, boxsets, genre, musicgenre, musicartist, musicalbum, audio, tag, person, studio, playlist, series, season, episode, common
@@ -79,16 +80,27 @@ class Library:
         if RefreshAudio:
             utils.refresh_widgets(False)
 
-    def open_EmbyDBRW(self, WorkerId, Priority):
+    def open_EmbyDBRW(self, WorkerId, Priority, Timeout=None):
         # if worker in progress, interrupt workers database ops (worker has lower priority) compared to all other Emby database (rw) ops
         if Priority and LockLowPriorityWorkers.locked() and self.LockDBRWOpen.locked():
             utils.update_SyncPause('priority', True)
 
+        Deadline = time.monotonic() + Timeout if Timeout is not None else None
+
         while not self.LockDBRWOpen.acquire(timeout=0.1):
-            pass
+            if Deadline is not None and time.monotonic() >= Deadline:
+                utils.update_SyncPause('priority', False)
+                raise RuntimeError(f"Emby database lock timeout: {WorkerId}")
 
         SQLs = {}
-        dbio.DBOpenRW(self.ServerData['ServerId'], WorkerId, SQLs)
+
+        try:
+            dbio.DBOpenRW(self.ServerData['ServerId'], WorkerId, SQLs)
+        except Exception:
+            self.LockDBRWOpen.release()
+            utils.update_SyncPause('priority', False)
+            raise
+
         return SQLs
 
     def close_EmbyDBRW(self, WorkerId, SQLs):
@@ -106,9 +118,14 @@ class Library:
         SQLs["emby"].update_LastIncrementalSyncStart(TimestampUTC)
         self.close_EmbyDBRW("set_syncdate", SQLs)
 
-    def restore_syncdate(self, LastSyncTime, LastSyncTimeStart):
-        # Workers advance LastIncrementalSync even on a failed startup run.
-        SQLs = self.open_EmbyDBRW("restore_syncdate", True)
+    def restore_syncdate(self, LastSyncTime, LastSyncTimeStart, Timeout=5.0):
+        # Workers advance LastIncrementalSync even on a failed startup run; rollback is best-effort.
+        try:
+            SQLs = self.open_EmbyDBRW("restore_syncdate", True, Timeout)
+        except Exception as Error:
+            xbmc.log(f"EMBY.database.library: Checkpoint rollback skipped: {Error}", xbmc.LOGWARNING)
+            return
+
         SQLs["emby"].update_LastIncrementalSync(LastSyncTime or "")
         SQLs["emby"].update_LastIncrementalSyncStart(LastSyncTimeStart or "")
         self.close_EmbyDBRW("restore_syncdate", SQLs)
