@@ -617,7 +617,7 @@ def set_DateCreated(Item):
     else:
         Item['KodiDateCreated'] = None
 
-RatingSources = ("default", "tmdb", "imdb", "trakt", "douban", "none")
+RatingSources = ("default", "tmdb", "imdb", "douban", "none")
 
 def get_PrimaryRatingType():
     Source = getattr(utils, 'communityratingsource', 'tmdb')
