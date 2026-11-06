@@ -70,6 +70,41 @@
                     <control type="toggle"/>
                 </setting>
             </group>
+            <group id="4" label="33914">
+                <setting id="communityratingsource" type="string" label="33915" help="33916">
+                    <level>1</level>
+                    <default>tmdb</default>
+                    <constraints>
+                        <options>
+                            <option label="TMDb">tmdb</option>
+                            <option label="IMDb">imdb</option>
+                            <option label="Trakt">trakt</option>
+                            <option label="33918">douban</option>
+                            <option label="33917">default</option>
+                            <option label="33919">none</option>
+                        </options>
+                    </constraints>
+                    <control format="string" type="spinner"/>
+                </setting>
+
+                <setting id="syncratingcritic" type="boolean" label="33920" help="33921">
+                    <level>1</level>
+                    <default>true</default>
+                    <control type="toggle"/>
+                </setting>
+
+                <setting id="syncratingdouban" type="boolean" label="33922" help="33923">
+                    <level>1</level>
+                    <default>false</default>
+                    <control type="toggle"/>
+                </setting>
+
+                <setting id="syncratingmusic" type="boolean" label="33924" help="33925">
+                    <level>1</level>
+                    <default>true</default>
+                    <control type="toggle"/>
+                </setting>
+            </group>
         </category>
         <category id="playback" label="30516" help="">
             <group id="1" label="33419">
@@ -126,22 +161,6 @@
                     <level>1</level>
                     <default>false</default>
                     <control type="toggle"/>
-                </setting>
-            </group>
-            <group id="4" label="33914">
-                <setting id="communityratingsource" type="string" label="33915" help="33916">
-                    <level>1</level>
-                    <default>tmdb</default>
-                    <constraints>
-                        <options>
-                            <option label="TMDb">tmdb</option>
-                            <option label="IMDb">imdb</option>
-                            <option label="Trakt">trakt</option>
-                            <option label="33918">douban</option>
-                            <option label="33917">default</option>
-                        </options>
-                    </constraints>
-                    <control format="string" type="spinner"/>
                 </setting>
             </group>
         </category>

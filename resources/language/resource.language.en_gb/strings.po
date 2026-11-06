@@ -869,17 +869,45 @@ msgid "Ratings"
 msgstr ""
 
 msgctxt "#33915"
-msgid "Primary rating source"
+msgid "Community rating source"
 msgstr ""
 
 msgctxt "#33916"
-msgid "Emby provides a single community rating without source information. Select the source used by these libraries. Changes apply after the next sync."
+msgid "Emby provides a single community rating without source information. If a Douban scraper (e.g. StrmAssistant) is installed on the Emby side, this rating is usually already the Douban score, so select \"Douban\" to label it correctly. \"Do not sync\" skips the community rating only; Douban and critic ratings are controlled by the switches below."
 msgstr ""
 
 msgctxt "#33917"
-msgid "Unspecified"
+msgid "Unknown source"
 msgstr ""
 
 msgctxt "#33918"
 msgid "Douban"
+msgstr ""
+
+msgctxt "#33919"
+msgid "Do not sync"
+msgstr ""
+
+msgctxt "#33920"
+msgid "Critic rating"
+msgstr ""
+
+msgctxt "#33921"
+msgid "Syncs the critic score (Rotten Tomatoes Tomatometer) from Emby on a 10-point scale. When disabled, no new critic ratings are written and existing ones are removed on the next item refresh."
+msgstr ""
+
+msgctxt "#33922"
+msgid "Douban rating"
+msgstr ""
+
+msgctxt "#33923"
+msgid "Douban scores are supplied by a Douban scraper on the Emby side (e.g. StrmAssistant), usually in two forms: overriding the item's community rating, or writing ProviderIds.DoubanRating. When both exist, the ProviderIds value takes precedence. Without such a plugin, or when an item has no Douban score, nothing is written. Disabled by default."
+msgstr ""
+
+msgctxt "#33924"
+msgid "Music rating"
+msgstr ""
+
+msgctxt "#33925"
+msgid "Syncs album and song community ratings into the Kodi music library. When disabled, album and song ratings are no longer written."
 msgstr ""

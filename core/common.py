@@ -617,7 +617,7 @@ def set_DateCreated(Item):
     else:
         Item['KodiDateCreated'] = None
 
-RatingSources = ("default", "tmdb", "imdb", "trakt", "douban")
+RatingSources = ("default", "tmdb", "imdb", "trakt", "douban", "none")
 
 def get_PrimaryRatingType():
     Source = getattr(utils, 'communityratingsource', 'tmdb')
@@ -627,23 +627,22 @@ def get_Ratings(Item):
     Ratings = {}
     PrimaryType = get_PrimaryRatingType()
     CommunityRating = Item.get('CommunityRating')
-
-    ProviderIds = Item.get('ProviderIds') or {}
-    DoubanRating = next((Value for Key, Value in ProviderIds.items()
-                         if str(Key).casefold() == "doubanrating"), None)
     DoubanValue = None
 
-    if DoubanRating:
-        try:
-            DoubanValue = min(max(float(DoubanRating), 0.0), 10.0) or None
-        except (TypeError, ValueError):
-            pass
+    # 豆瓣分有两种来源：ProviderIds.DoubanRating，或刮削插件（如 StrmAssistant）直接覆盖社区评分。
+    if getattr(utils, 'syncratingdouban', True):
+        ProviderIds = Item.get('ProviderIds') or {}
+        DoubanRating = next((Value for Key, Value in ProviderIds.items()
+                             if str(Key).casefold() == "doubanrating"), None)
 
-    # 主评分选豆瓣但条目没有真实豆瓣分时，退回不标注：CommunityRating 来自别的来源，不能标成豆瓣。
-    if PrimaryType == "douban" and DoubanValue is None:
-        PrimaryType = "default"
+        if DoubanRating:
+            try:
+                DoubanValue = min(max(float(DoubanRating), 0.0), 10.0) or None
+            except (TypeError, ValueError):
+                pass
 
-    if CommunityRating:
+    # PrimaryType "none"：不同步社区评分。此时仅剩豆瓣/影评人评分可写。
+    if CommunityRating and PrimaryType != "none":
         try:
             Ratings[PrimaryType] = min(max(float(CommunityRating), 0.0), 10.0)
         except (TypeError, ValueError):
@@ -652,15 +651,23 @@ def get_Ratings(Item):
     if DoubanValue is not None:
         Ratings['douban'] = DoubanValue
 
-    CriticRating = Item.get('CriticRating')
+    if getattr(utils, 'syncratingcritic', True):
+        CriticRating = Item.get('CriticRating')
 
-    if CriticRating:
-        try:
-            Ratings['tomatometerallcritics'] = min(max(float(CriticRating) / 10.0, 0.0), 10.0)
-        except (TypeError, ValueError):
-            pass
+        if CriticRating:
+            try:
+                Ratings['tomatometerallcritics'] = min(max(float(CriticRating) / 10.0, 0.0), 10.0)
+            except (TypeError, ValueError):
+                pass
 
     return Ratings
+
+def get_MusicRating(Item):
+    # 音乐评分不走 rating 表，直接写 album.fRating / song.rating，需单独开关控制。
+    if not getattr(utils, 'syncratingmusic', True):
+        return None
+
+    return Item.get('CommunityRating')
 
 def set_common(Item, ServerId, DynamicNode, IncrementalSync):
     Item['ProductionLocations'] = Item.get('ProductionLocations', [])
