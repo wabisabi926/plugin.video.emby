@@ -245,6 +245,8 @@ class Library:
             FailedChanges = []
 
             if utils.SystemShutdown:
+                # Workers may advance the checkpoint while startup is running; roll back on shutdown.
+                self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
                 return
 
             # Retrieve changes
@@ -265,6 +267,7 @@ class Library:
                     with closing(self.get_startup_changes(LastSyncTime, LastSyncTimeStart)) as Changes:
                         for LibrarySyncedId, _, LibrarySyncedEmbyType, Items, Error in Changes:
                             if utils.SystemShutdown:
+                                self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
                                 utils.close_ProgressBar(self.KodiStartSyncId)
                                 utils.update_SyncPause(self.ServerStartSyncId, False)
                                 return
@@ -281,6 +284,7 @@ class Library:
                                 LibraryName = self.Views.ViewItems[LibrarySyncedId][0]
 
                                 if utils.SystemShutdown:
+                                    self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
                                     utils.close_ProgressBar(self.KodiStartSyncId)
                                     utils.update_SyncPause(self.ServerStartSyncId, False)
                                     return
@@ -300,6 +304,7 @@ class Library:
 
                             for Item in Items:
                                 if utils.SystemShutdown:
+                                    self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
                                     utils.close_ProgressBar(self.KodiStartSyncId)
                                     utils.update_SyncPause(self.ServerStartSyncId, False)
                                     return
@@ -330,6 +335,7 @@ class Library:
                     utils.close_ProgressBar(self.KodiStartSyncId)
 
                 if utils.SystemShutdown:
+                    self.restore_syncdate(LastSyncTime, LastSyncTimeStart)
                     utils.update_SyncPause(self.ServerStartSyncId, False)
                     return
 
