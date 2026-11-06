@@ -1,13 +1,15 @@
+import json
 import threading
 from time import monotonic
-from urllib.parse import parse_qsl, unquote, urlencode
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit
 import uuid
 import socket
+import sqlite3
 import xbmc
 import xbmcplugin
 from database import dbio
 from emby import metadata, httpcache
-from helper import utils, context, playerops, pluginmenu, player, xmls, queue, versions, artwork, cache
+from helper import utils, context, playerops, pluginmenu, player, xmls, queue, versions, artwork, cache, similar
 sendOK = 'HTTP/1.1 200 OK\r\nServer: Emby-Next-Gen\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'.encode()
 sendNotFound = 'HTTP/1.1 404 Not Found\r\nServer: Emby-Next-Gen\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'.encode()
 sendHeadNotImplemented = 'HTTP/1.1 501 Not Implemented\r\nServer: Emby-Next-Gen\r\nConnection: close\r\n\r\n'.encode()
@@ -21,6 +23,8 @@ DelayedContentLock = threading.Lock()
 EpisodeSelectionLock = threading.Lock()
 EpisodeSelections = {}
 EpisodeSelectionsByToken = {}
+EpisodeVersionRequests = tuple(f"{Method} {metadata.EpisodeVersionApi}".encode() for Method in ("GET", "HEAD"))
+SimilarRequests = tuple(f"{Method} {similar.API_PATH}".encode() for Method in ("GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"))
 EpisodeRetryWindow = 1.0
 EpisodeStopTimeout = 0.3
 EpisodeResponseLifetime = 5.0
@@ -194,6 +198,26 @@ def worker_Query(WorkerNumber):  # thread by caller
         client.settimeout(None)
         try:
             RequestData = client.recv(16384)
+            IsSimilar = RequestData.startswith(SimilarRequests)
+            if IsSimilar or RequestData.startswith(EpisodeVersionRequests):
+                client.settimeout(1.0)
+                # The Similar handler polls for disconnects after the request headers are read.
+                RequestEnd = b'\r\n\r\n' if IsSimilar else b'\r\n'
+                while RequestEnd not in RequestData and len(RequestData) < 131072:
+                    Chunk = client.recv(16384)
+                    if not Chunk:
+                        break
+                    RequestData += Chunk
+
+                if RequestEnd in RequestData and len(RequestData) <= 131072:
+                    Method, Path, _ = RequestData.split(b'\r\n', 1)[0].decode().split(' ', 2)
+                    if IsSimilar:
+                        serve_similar(client, Method, Path)
+                    else:
+                        serve_episode_version(client, Method, Path)
+                client.close()
+                continue
+
             if RequestData.startswith(b"EVENT service;multiversion;"):
                 # The clicked item's encoded URL can span more than one socket read.
                 client.settimeout(1.0)
@@ -210,7 +234,7 @@ def worker_Query(WorkerNumber):  # thread by caller
                 RequestData = RequestData[:-1]
 
             data = RequestData.decode()
-        except (OSError, UnicodeError):
+        except (OSError, UnicodeError, ValueError):
             client.close()
             continue
 
@@ -367,6 +391,150 @@ def worker_Query(WorkerNumber):  # thread by caller
         client.close()
         del client
         del IncomingData
+
+
+def serve_similar(client, Method, Request):
+    Deadline = monotonic() + 10.0
+    client.setblocking(False)
+
+    def ClientDisconnected():
+        try:
+            return not client.recv(1, socket.MSG_PEEK)
+        except BlockingIOError:
+            return False
+        except OSError:
+            return True
+
+    def Cancelled():
+        return monotonic() >= Deadline or ClientDisconnected()
+
+    Status = 200
+    try:
+        Path, _, Query = Request.partition('?')
+        if Path != f"{similar.API_PATH}similar":
+            raise similar.QueryError(404, "not_found")
+        if Method != 'GET':
+            raise similar.QueryError(405, "method_not_allowed")
+        try:
+            Pairs = parse_qsl(Query, keep_blank_values=True, strict_parsing=True, max_num_fields=3)
+            Params = dict(Pairs)
+            if len(Pairs) != len(Params) or set(Params) - {'type', 'dbid', 'limit'}:
+                raise ValueError
+            KodiType = Params['type']
+            if KodiType not in similar.MEDIA_TYPES or not Params['dbid'].isascii() or not Params['dbid'].isdecimal():
+                raise ValueError
+            KodiId = int(Params['dbid'])
+            LimitText = Params.get('limit', str(similar.DEFAULT_LIMIT))
+            if not LimitText.isascii() or not LimitText.isdecimal():
+                raise ValueError
+            Limit = int(LimitText)
+            if not 0 < KodiId <= 2147483647 or not 1 <= Limit <= similar.MAX_LIMIT:
+                raise ValueError
+        except (KeyError, ValueError):
+            raise similar.QueryError(400, "invalid_request") from None
+        Data = similar.get_items(KodiType, KodiId, Limit, Cancelled)
+        if monotonic() >= Deadline:
+            raise similar.QueryError(502, "upstream_error")
+    except similar.QueryError as Error:
+        Status, Data = Error.status, {'error': Error.code}
+    except (sqlite3.Error, KeyError):
+        Status, Data = 503, {'error': 'unavailable'}
+    except Exception as Error:
+        xbmc.log(f"EMBY.hooks.webservice: Similar API failed: {type(Error).__name__}", xbmc.LOGERROR)
+        Status, Data = 500, {'error': 'internal_error'}
+
+    if ClientDisconnected():
+        return
+
+    Reason = {200: 'OK', 400: 'Bad Request', 404: 'Not Found', 405: 'Method Not Allowed',
+              500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable'}[Status]
+    Body = json.dumps(Data).encode('utf-8')
+    Allow = "Allow: GET\r\n" if Status == 405 else ""
+    Header = (f"HTTP/1.1 {Status} {Reason}\r\nConnection: close\r\nContent-Type: application/json\r\n"
+              f"Cache-Control: no-store\r\n{Allow}Content-Length: {len(Body)}\r\n\r\n")
+    try:
+        client.settimeout(1.0)
+        client.sendall(Header.encode() + (b'' if Method == 'HEAD' else Body))
+    except OSError:
+        pass
+
+
+def episode_source_label(Path):
+    if "://" not in Path:
+        return Path
+
+    Url = urlsplit(Path.split('|', 1)[0])
+    return f"{Url.hostname or ''}{unquote(Url.path)}"
+
+
+def serve_episode_version(client, Method, Request):
+    Path, _, Query = Request.partition('?')
+    if Path.startswith(metadata.EpisodeMediaPrefix):
+        MetaData = metadata.load_selected_episode(Path)
+        if not MetaData or MetaData['ServerId'] not in utils.EmbyServers:
+            send_episode_response(client, sendNotFound)
+        elif Method == 'HEAD':
+            send_episode_response(client, sendHeadVideo)
+        else:
+            send_redirect(client, MetaData, f"videos/{MetaData['EmbyId']}/stream?static=true", AddCache=False)
+        return
+
+    Action = Path.removeprefix(metadata.EpisodeVersionApi)
+    Params = dict(parse_qsl(Query))
+    if Method != 'GET' or Action not in ('versions', 'resolve') or 'path' not in Params:
+        send_episode_response(client, sendNotFound)
+        return
+
+    MetaData = metadata.load_episode_versions(Params['path'])
+    if not MetaData:
+        send_episode_response(client, sendNotFound)
+        return
+
+    Sources = MetaData['MediaSources']
+    if Action == 'versions':
+        Mode = Params.get('mode')
+        Preferred = 0 if len(Sources) == 1 else None
+        if Preferred is None and Mode != 'select':
+            Context = player.get_version_context(MetaData['ServerId'], MetaData['EmbyId'], 'episode')
+            Preferred = versions.recall_choice(Sources, Context, clear_mismatch=False)
+            if Preferred is None and utils.autoSelectHighestPlaybackResolution:
+                Preferred = versions.highest_resolution_index(Sources)
+            if Preferred is None and Mode == 'next':
+                Preferred = 0
+        send_episode_json(client, {'preferred': Preferred, 'versions': [
+            {'id': Source[0]['Id'], 'name': Source[0]['Name'],
+             'pathLabel': episode_source_label(Source[0]['Path']),
+             'size': utils.SizeToText(Source[0]['Size'] or 0),
+             'width': Source[1][0]['Width'] if Source[1] else 0}
+            for Source in Sources]})
+        return
+
+    for Source, *_ in Sources:
+        if Source['Id'] == Params.get('source'):
+            break
+    else:
+        send_episode_response(client, sendNotFound)
+        return
+
+    Payload = MetaData['Payload'].rsplit('/', 1)[0] + '/stream'
+    Selection = f"{metadata.EpisodeMediaPrefix}{uuid.uuid4().hex}/{Source['Id'].encode('utf-8').hex()}{Payload}"
+    PlaybackPath = f"http://127.0.0.1:57342{Selection}|redirect-limit=1000&connection-timeout={utils.httpConnectionTimeout}"
+
+    send_episode_json(client, {'path': PlaybackPath})
+
+
+def send_episode_json(client, Data):
+    Body = json.dumps(Data).encode('utf-8')
+    Header = f"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {len(Body)}\r\n\r\n"
+    send_episode_response(client, Header.encode() + Body)
+
+
+def start_selected_episode(MetaData):
+    global EmbyIdCurrentlyPlaying
+    EmbyIdCurrentlyPlaying = MetaData['EmbyId']
+    Context = player.get_version_context(MetaData['ServerId'], MetaData['EmbyId'], 'episode')
+    versions.remember_choice(MetaData['MediaSources'], MetaData['SelectionIndexMediaSource'], Context)
+    set_QueuedPlayingItem(MetaData)
 
 
 def LoadISO(MetaData, client, PlaybackPath=None): # Disc image handed to Kodi
@@ -579,12 +747,8 @@ def GetRequest(client, Payload, isDelayedContent, isPicture, isAudio, isVideo):
 
         if SelectionIndex == -1: # Cancel
             versions.clear_choice()
-            # Stop the owner before releasing the placeholder response. Otherwise Kodi can
-            # finish its lookup and reopen the origin, starting another version selection.
-            if MetaData['KodiId']:
-                player.ForceStopKodiId = int(MetaData['KodiId'])
-            playerops.Stop(Wait=True)
-            set_DelayedContent(MetaData['ETag'], get_MediaHandler(MetaData['Payload']), 1, 0)
+            set_DelayedContent(MetaData['ETag'], get_MediaHandler(MetaData['Payload']), 1, MetaData['KodiId'])
+            playerops.Stop()
             return
 
     if MultiVersionEpisode:
@@ -780,7 +944,9 @@ def SubTitlesAdd(MetaData):
 
             BinaryData = utils.EmbyServers[MetaData['ServerId']].API.get_Subtitle_Binary(MetaData['EmbyId'], MetaData['MediaSources'][MetaData['SelectionIndexMediaSource']][0]['Id'], Subtitle['Index'], Subtitle['Codec'])
 
-            if MetaData['EmbyId'] != EmbyIdCurrentlyPlaying: # check if Kodi is still playing the same file
+            if (MetaData['EmbyId'] != EmbyIdCurrentlyPlaying or
+                    (MetaData.get('PreselectedEpisode') and
+                     player.PlayingItem['EmbySessionData'].get('PlaySessionId') != MetaData['PlaySessionId'])):
                 del BinaryData
                 return
 
@@ -902,7 +1068,8 @@ def set_QueuedPlayingItem(MetaData):
     if MetaData.get('VersionSelectionDone'):
         player.QueuedPlayingItem['SelectedVersion'] = (str(MetaData['ServerId']), str(MetaData['EmbyId']), MetaData['MediaSources'][MetaData['SelectionIndexMediaSource']][0]['Id'])
 
-    MetaData['PlaySessionId'] = str(uuid.uuid4()).replace("-", "")
+    if not MetaData.get('PreselectedEpisode'):
+        MetaData['PlaySessionId'] = uuid.uuid4().hex
     player.QueuedPlayingItem["EmbySessionData"]['PlaySessionId'] = MetaData['PlaySessionId']
 
 def add_DelayedContent(MetaData, client):

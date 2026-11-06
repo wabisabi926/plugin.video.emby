@@ -12,11 +12,13 @@ build/
 *.egg-info/
 
 # Local documentation and debug artifacts
+/tests/
 /docs/
 /debug/
 /logs/
 /.codex-attachments/
 *.[mM][dD]
+!/README.md
 
 # Emby / Kodi local data & credentials
 __local__/

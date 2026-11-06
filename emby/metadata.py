@@ -3,7 +3,34 @@ from helper import versions, artwork
 
 MediaIdMapping = {"m": "movie", "e": "episode", "M": "musicvideo", "p": "picture", "a": "song", "i": "movie", "v": "video"} # i=iso
 SelectedIsoFilename = "selected.iso"
+EpisodeVersionApi = "/api/v1/episodes/"
+EpisodeMediaPrefix = EpisodeVersionApi + "media/"
 MediaSourceContextMenu = None
+
+
+def load_episode_versions(Payload):
+    MetaData = load_MetaData(Payload, False, False)
+    return MetaData if MetaData.get('KodiType') == 'episode' else {}
+
+
+def load_selected_episode(Path):
+    Path = Path.split('|', 1)[0]
+    if not Path.startswith(EpisodeMediaPrefix):
+        return {}
+
+    Session, _, Selection = Path[len(EpisodeMediaPrefix):].partition('/')
+    SourceId, _, Payload = Selection.partition('/')
+    MetaData = load_episode_versions('/' + Payload)
+    if not MetaData:
+        return {}
+
+    for Index, Source in enumerate(MetaData['MediaSources']):
+        if Source[0]['Id'].encode('utf-8').hex() == SourceId:
+            MetaData.update(SelectionIndexMediaSource=Index, PlaySessionId=Session,
+                            EpisodeSelection=True, PreselectedEpisode=True, VersionSelectionDone=True)
+            return MetaData
+
+    return {}
 
 def selected_iso_payload(Payload, SourceRecord):
     Prefix, MetaFolder, _ = Payload.rsplit('/', 2)

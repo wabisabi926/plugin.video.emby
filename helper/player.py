@@ -4,7 +4,7 @@ from urllib.parse import unquote
 import json
 import xbmc
 from database import dbio
-from emby import listitem
+from emby import listitem, metadata
 from core import common
 from dialogs import skipintrocredits
 from . import utils, playerops, queue, cache, copy, versions
@@ -86,7 +86,8 @@ def PlayerCommands():
 
                 if "item" in EventData:
                     if 'id' in EventData['item']:
-                        if ForceStopKodiId == EventData["item"]["id"]:
+                        if (ForceStopKodiId == EventData["item"]["id"] and
+                                not selected_episode(playerops.GetPlayerFilepath())):
                             playerops.Stop()
                             continue
 
@@ -108,6 +109,10 @@ def PlayerCommands():
                 EventData = json.loads(Commands[1])
                 KodiId = 0
                 KodiType = ""
+                FullPath = playerops.GetPlayerFilepath()
+                if not FullPath:
+                    continue
+                EpisodeSelection = selected_episode(FullPath)
 
                 # Dummy (blankwav) played
                 if "item" in EventData:
@@ -115,17 +120,11 @@ def PlayerCommands():
                         KodiId = EventData['item']['id']
                         KodiType = EventData['item']['type']
 
-                        if ForceStopKodiId == EventData["item"]["id"]:
+                        if ForceStopKodiId == EventData["item"]["id"] and not EpisodeSelection:
                             playerops.Stop(Wait=True)
                             continue
 
                 set_PlayerId(EventData)
-                FullPath = ""
-
-                FullPath = playerops.GetPlayerFilepath()
-
-                if not FullPath:
-                    continue
 
                 PlaylistPosition = playerops.GetPlaylistPosition(playerops.PlayerId)
                 close_SkipIntroDialog()
@@ -134,18 +133,26 @@ def PlayerCommands():
                 SkipCreditsJumpDone = False
 
                 # 3D, ISO etc. content from webserverice (addon mode)
-                if PlaylistRemoveItem != -1:
+                if PlaylistRemoveItem != -1 and not EpisodeSelection:
                     playerops.RemovePlaylistItem(1, PlaylistRemoveItem)
-                    PlaylistRemoveItem = -1
+                PlaylistRemoveItem = -1
 
                 # multiselection done
-                if MultiselectionDone:
+                if MultiselectionDone and not EpisodeSelection:
                     MultiselectionDone = False
                     continue
 
                 EmbyId = 0
-                SelectedVersion = QueuedPlayingItem.get('SelectedVersion')
-                EmbyId, isAddonContent, isDynamic, EmbyType, MediaSources, CachedItem = find_EmbyContent(FullPath, KodiId, KodiType)
+                if EpisodeSelection:
+                    from hooks import webservice
+                    MultiselectionDone = False
+                    if ForceStopKodiId == KodiId:
+                        ForceStopKodiId = 0
+                    webservice.start_selected_episode(EpisodeSelection)
+                    isAddonContent, EmbyType, MediaSources = True, 'Episode', []
+                else:
+                    SelectedVersion = QueuedPlayingItem.get('SelectedVersion')
+                    EmbyId, isAddonContent, isDynamic, EmbyType, MediaSources, CachedItem = find_EmbyContent(FullPath, KodiId, KodiType)
 
                 if PlayingItem["EmbySessionData"] and 'ItemId' in PlayingItem["EmbySessionData"]:
                     cache.update_userdata_Kodi(str(PlayingItem["EmbySessionData"]['ItemId']), PlayingItem["EmbyServer"].ServerData['ServerId'], PlayingItem["EmbySessionData"]['PositionTicks'] / 10000000.0, utils.currenttime(), None, PlayingItem["EmbySessionData"]['RunTimeTicks'] / 10000000.0, None)
@@ -256,6 +263,8 @@ def PlayerCommands():
 
                 # Init Playback
                 init_EmbyPlayback()
+                if EpisodeSelection:
+                    webservice.AsyncCommandQueue.put((("SUBTITLE", EpisodeSelection),))
 
             elif Commands[0] == "play": # {"item":{"id":216,"type":"episode"},"player":{"playerid":1,"speed":1}}, '{"item":{"id":1100045814,"type":"song"},"player":{"playerid":-1,"speed":1}
                 PlayingItemInit = copy.Object(QueuedPlayingItem)
@@ -743,6 +752,10 @@ def get_version_context(ServerId, EmbyId, KodiType, Item=None):
     if Item.get('SeriesId') and Item.get('SeasonId'):
         return str(ServerId), str(Item['SeriesId']), str(Item['SeasonId'])
 
+    Server = utils.EmbyServers.get(ServerId)
+    if not Server or not Server.library.SettingsLoaded:
+        return None
+
     embydb = dbio.DBOpenRO(ServerId, 'version_context')
     try:
         KodiId = embydb.get_KodiId_by_EmbyId_EmbyType(EmbyId, 'Episode')
@@ -761,6 +774,13 @@ def get_version_context(ServerId, EmbyId, KodiType, Item=None):
     finally:
         dbio.DBCloseRO(ServerId, 'version_context')
     return None
+
+
+def selected_episode(Path):
+    if not Path.startswith(utils.AddonModePath):
+        return {}
+    MetaData = metadata.load_selected_episode(Path[len(utils.AddonModePath) - 1:])
+    return MetaData if MetaData.get('ServerId') in utils.EmbyServers else {}
 
 
 def find_EmbyContent(FullPath, KodiId, KodiType):

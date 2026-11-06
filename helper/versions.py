@@ -51,11 +51,12 @@ def clear_choice():
         _LastChoice = None
 
 
-def recall_choice(Sources, Context):
+def recall_choice(Sources, Context, clear_mismatch=True):
     global _LastChoice
     with _Lock:
         if not Sources or not Context or not _LastChoice or _LastChoice[0] != Context:
-            _LastChoice = None
+            if clear_mismatch:
+                _LastChoice = None
             return None
         _, Tag, Index = _LastChoice
 

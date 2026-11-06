@@ -1472,6 +1472,17 @@ class EmbyDatabase:
 
         return None
 
+    def get_similar_item(self, EmbyId, EmbyType):
+        self.cursor.execute(f"""
+            SELECT Item.KodiId, Library.EmbyLibraryName
+            FROM {EmbyType} AS Item
+            LEFT JOIN EmbyLibraryMapping AS Mapping ON Mapping.EmbyId = Item.EmbyId
+            LEFT JOIN LibrarySyncedMirrow AS Library ON Library.EmbyLibraryId = Mapping.EmbyLibraryId
+            WHERE Item.EmbyId = ?
+            ORDER BY Mapping.EmbyLibraryId, Library.EmbyLibraryName
+        """, (EmbyId,))
+        return self.cursor.fetchall()
+
     def get_metadata_by_EmbyId_EmbyType(self, EmbyId, EmbyContentType):
         ContentData = None
 

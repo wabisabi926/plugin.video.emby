@@ -29,9 +29,9 @@ class HTTP:
         self.RequestAbort = {}
 
     @contextmanager
-    def query_connection(self, Abort):
-        """Reserve one persistent connection for a change-discovery worker."""
-        ConnectionId = f"CHANGES_{uuid.uuid4()}"
+    def query_connection(self, Abort, Name="CHANGES"):
+        """Reserve a private connection for a cancellable query."""
+        ConnectionId = f"{Name}_{uuid.uuid4()}"
         self.RequestBusy[ConnectionId] = threading.Lock()
         self.RequestAbort[ConnectionId] = Abort
 
@@ -372,8 +372,10 @@ class HTTP:
                     PayloadRequestStart = ContentRangeEnd + 1
 
                     if CloseDelimited:
+                        Abort = self.Connection[ConnectionId].get("Abort")
                         self.Common.socket_close(ConnectionId)
-                        StatusCodeConnect = self.Common.socket_open(ConnectionString, ConnectionId, CloseConnection)
+                        StatusCodeConnect = self.Common.socket_open(
+                            ConnectionString, ConnectionId, CloseConnection, Abort)
 
                         if StatusCodeConnect:
                             self.Requests_Counter(False)
@@ -600,6 +602,8 @@ class HTTP:
         if not ConnectionString:
             ConnectionString = self.ServerData['ServerUrl']
 
+        SimilarRequest = ConnectionId.startswith("SIMILAR_")
+        Abort = self.RequestAbort.get(ConnectionId)
         RedirectedCrossOrigin = False
         RetryCounter = 0
 
@@ -614,17 +618,18 @@ class HTTP:
 
         while True:
             # Shutdown
-            if utils.SystemShutdown or (ConnectionId in self.RequestAbort and self.RequestAbort[ConnectionId].is_set()):
+            if utils.SystemShutdown or (Abort and Abort()):
                 self.Common.socket_close(ConnectionId)
                 self.Response[RequestId] = noData(0, {}, Binary)
                 break
 
             # open socket
             if ConnectionId not in self.Connection:
-                StatusCodeConnect = self.Common.socket_open(ConnectionString, ConnectionId, CloseConnection)
+                StatusCodeConnect = self.Common.socket_open(
+                    ConnectionString, ConnectionId, CloseConnection, Abort if SimilarRequest else None)
 
                 if StatusCodeConnect:
-                    if StatusCodeConnect not in (608, 609, 610, 611): # wrong Emby server address or SSL issue
+                    if not SimilarRequest and StatusCodeConnect not in (608, 609, 610, 611): # wrong Emby server address or SSL issue
                         if self.ServerData['ServerId'] in utils.EmbyServers:
                             utils.EmbyServers[self.ServerData['ServerId']].ServerReconnect(True)
 
@@ -653,12 +658,19 @@ class HTTP:
                 self.Connection[ConnectionId]["RequestHeader"] = RedirectedRequestHeader
 
             # Request data with different timeout settings
-            if Handler == "System/Ping":
+            if SimilarRequest:
+                # Leave time for the local API to answer before Kodi's recommendation deadline.
+                StatusCode, Header, Payload = self.socket_request(Method, Handler, Params, Binary, 3, 8, ConnectionId, ConnectionString, CloseConnection)
+            elif Handler == "System/Ping":
                 StatusCode, Header, Payload = self.socket_request(Method, Handler, Params, Binary, 12, 6, ConnectionId,  ConnectionString, CloseConnection)
             elif "Subtitles" in Handler:
                 StatusCode, Header, Payload = self.socket_request(Method, Handler, Params, Binary, 12, 30, ConnectionId,  ConnectionString, CloseConnection)
             else:
                 StatusCode, Header, Payload = self.socket_request(Method, Handler, Params, Binary, 12, 1200, ConnectionId,  ConnectionString, CloseConnection)
+
+            if SimilarRequest and Abort():
+                self.Response[RequestId] = noData(601, {}, Binary)
+                break
 
             # Redirects
             if StatusCode in (301, 302, 303, 307, 308):
@@ -733,6 +745,11 @@ class HTTP:
 
             if CloseConnection:
                 self.Common.socket_close(ConnectionId)
+
+            if SimilarRequest:
+                # An optional recommendation lookup should not reconnect or disconnect the server.
+                self.Response[RequestId] = (StatusCode, Header, Payload)
+                break
 
             if StatusCode in (200, 206): # OK / partial content
                 self.Response[RequestId] = (StatusCode, Header, Payload)

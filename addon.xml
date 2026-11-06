@@ -11,7 +11,7 @@
         <menu id="kodi.core.main">
             <item library="service.py" args="multiversion">
                 <label>33748</label>
-                <visible>[String.Contains(ListItem.FileNameAndPath,"/e-") | String.Contains(ListItem.FileNameAndPath,"/musicvideos/")] + [String.Contains(ListItem.FileNameAndPath,"-m-") | String.Contains(ListItem.FileNameAndPath,"-ms-")]</visible>
+                <visible>[String.Contains(ListItem.FileNameAndPath,"/e-") + !String.IsEqual(Window(10000).Property(GenEpisodeVersions),true) | String.Contains(ListItem.FileNameAndPath,"/musicvideos/")] + [String.Contains(ListItem.FileNameAndPath,"-m-") | String.Contains(ListItem.FileNameAndPath,"-ms-")]</visible>
             </item>
 
             <item library="service.py" args="refreshitem">

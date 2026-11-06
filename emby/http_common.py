@@ -132,12 +132,15 @@ class HTTPCommon:
         if ConnectionId in self.Connection:
             del self.Connection[ConnectionId]
 
-    def socket_open(self, ConnectionString, ConnectionId, CloseConnection):
+    def socket_open(self, ConnectionString, ConnectionId, CloseConnection, Abort=None):
         while True:
             NewHeader = False
 
             if ConnectionId not in self.Connection:
                 self.Connection[ConnectionId] = {}
+
+            if Abort:
+                self.Connection[ConnectionId]["Abort"] = Abort
 
             if "ConnectionString" not in self.Connection[ConnectionId]:
                 self.Connection[ConnectionId]["ConnectionString"] = ConnectionString
@@ -184,6 +187,10 @@ class HTTPCommon:
             AddrInfoIndex = 0
 
             while True:
+                if Abort and Abort():
+                    self.socket_close(ConnectionId)
+                    return 601
+
                 try:
                     AddressFamily, Address = self.AddrInfo[(self.Connection[ConnectionId]["Hostname"], self.Connection[ConnectionId]["Port"])][AddrInfoIndex]
                     self.Connection[ConnectionId]["Socket"] = socket.socket(AddressFamily, socket.SOCK_STREAM)
@@ -371,8 +378,12 @@ class HTTPCommon:
         BytesSendTotal = len(Request)
         TimeoutSocket = 0.1
         TimeoutLoops = Timeout * 10
+        Abort = self.Connection.get(ConnectionId, {}).get("Abort")
 
         while True:
+            if Abort and Abort():
+                return 601, b""
+
             try:
                 self.Connection[ConnectionId]["Socket"].settimeout(TimeoutSocket)
 

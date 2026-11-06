@@ -416,7 +416,7 @@ class API:
                     if Query is None:
                         break
 
-                    ConnectionId = Connections.enter_context(self.http.HTTP.query_connection(Abort))
+                    ConnectionId = Connections.enter_context(self.http.HTTP.query_connection(Abort.is_set))
                     ConnectionIds.append(ConnectionId)
                     Pending.append((Query, ConnectionId, Pool.submit(self.get_ItemChanges, Query, ConnectionId, Abort)))
 
@@ -431,7 +431,7 @@ class API:
                         xbmc.log(f"EMBY.emby.api: Change query failed, retrying: {Query} / {Error}", xbmc.LOGWARNING)
 
                         try:
-                            RetryConnection = Connections.enter_context(self.http.HTTP.query_connection(Abort))
+                            RetryConnection = Connections.enter_context(self.http.HTTP.query_connection(Abort.is_set))
                             ConnectionIds.append(RetryConnection)
                             Items = self.get_ItemChanges(Query, RetryConnection, Abort)
                             Error = None
@@ -445,7 +445,7 @@ class API:
                             ConnectionId = ""  # Fall back to the default connection for the next query.
 
                             try:
-                                ConnectionId = Connections.enter_context(self.http.HTTP.query_connection(Abort))
+                                ConnectionId = Connections.enter_context(self.http.HTTP.query_connection(Abort.is_set))
                                 ConnectionIds.append(ConnectionId)
                             except Exception:
                                 pass
@@ -633,6 +633,17 @@ class API:
 
         return {}
 
+
+    def get_similar(self, Id, EmbyType, Limit, Cancelled):
+        """Return raw identities for the local Similar API; never create dynamic items."""
+        with self.http.HTTP.query_connection(Cancelled, "SIMILAR") as ConnectionId:
+            Status, _, Payload = self.http.request("GET", f"Items/{Id}/Similar", {
+                'UserId': self.ServerData['UserId'], 'IncludeItemTypes': EmbyType, 'Limit': Limit,
+                'EnableTotalRecordCount': False, 'EnableImages': False, 'EnableUserData': False
+            }, {}, False, "", None, ConnectionId)
+        if Status != 200 or not isinstance(Payload, dict) or not isinstance(Payload.get('Items'), list):
+            return None
+        return Payload['Items']
 
     def get_users(self):
         _, _, Payload = self.http.request("GET", "Users", {'IsDisabled': False, 'IsHidden': False}, {}, False, "", None, "")

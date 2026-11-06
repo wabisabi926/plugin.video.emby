@@ -15,6 +15,13 @@ class VideoDatabase:
         self.cursor = cursor
         self.common_db = common_db.CommonDatabase(cursor)
 
+    def get_existing_similar_ids(self, KodiType, KodiIds):
+        Table, Column = {"movie": ("movie", "idMovie"), "tvshow": ("tvshow", "idShow")}[KodiType]
+        if not KodiIds:
+            return set()
+        self.cursor.execute(f"SELECT {Column} FROM {Table} WHERE {Column} IN ({','.join('?' for _ in KodiIds)})", tuple(KodiIds))
+        return {Row[0] for Row in self.cursor.fetchall()}
+
     def add_Index(self):
         try: # xbox issue
             self.cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_strFilename'")

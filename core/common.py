@@ -142,7 +142,7 @@ def load_ExistingItem(Item, Library, EmbyDB, EmbyType):
     return False
 
 
-def is_http_iso_middle(Path, Container):
+def needs_http_iso_alias(Path, Container):
     if not Path.lower().startswith(('http://', 'https://')) or (Container or '').lower() not in ('', 'strm', 'iso'):
         return False
 
@@ -151,12 +151,21 @@ def is_http_iso_middle(Path, Container):
     except ValueError:
         return False
 
+    if not URL.netloc:
+        return False
+
     Segments = [unquote(Segment).lower() for Segment in URL.path.rstrip('/').split('/')]
+    Filename = Segments[-1]
+    if Filename.endswith('.iso'):
+        # Keep plain ISO URLs direct. A signed URL can need a visible ISO suffix on the loopback entry.
+        return (not Path.lower().endswith('.iso') and not URL.path.endswith('/')
+                and '/' not in Filename and '\\' not in Filename)
+
     # An explicit media filename at the end takes precedence over an earlier directory name.
-    if not URL.netloc or Segments[-1].endswith(('.iso', '.img', '.nrg', '.udf', '.mkv', '.mp4', '.m4v',
-                                               '.avi', '.mov', '.wmv', '.webm', '.ts', '.m2ts', '.mts',
-                                               '.mpg', '.mpeg', '.vob', '.flv', '.rm', '.rmvb', '.3gp',
-                                               '.bdmv', '.ifo', '.strm', '.m3u8')):
+    if Filename.endswith(('.img', '.nrg', '.udf', '.mkv', '.mp4', '.m4v',
+                          '.avi', '.mov', '.wmv', '.webm', '.asf', '.ts', '.tp', '.m2ts', '.mts',
+                          '.mpg', '.mpeg', '.vob', '.flv', '.rm', '.rmvb', '.3gp',
+                          '.bdmv', '.ifo', '.strm', '.m3u8')):
         return False
 
     return any(Segment.endswith('.iso') and '/' not in Segment and '\\' not in Segment
@@ -252,7 +261,7 @@ def set_path_filename(Item, ServerId, MediaSource, isDynamic=False):
     if Item['Type'] in ('Movie', 'Episode', 'MusicVideo', 'Video'):
         for Source in MediaSourcesLocal:
             SourceContainer = Source.get('Container') or (Container if not MediaSources or Source is MediaSources[0] else "")
-            if is_http_iso_middle(Source.get('Path') or '', SourceContainer):
+            if needs_http_iso_alias(Source.get('Path') or '', SourceContainer):
                 HttpIsoSources.add(Source['Id'])
 
     # The loopback URL supplies the .iso filename while the redirect retains the full source URL.

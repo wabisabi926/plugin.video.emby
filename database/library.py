@@ -364,6 +364,9 @@ class Library:
         else:
             self.set_syncdate(NewSyncData)
 
+        if Firstrun:
+            xbmc.executebuiltin('ReloadSkin()')
+
     # Userdata change is an high priority task
     def worker_userdata(self, IncrementalSync):
         UpdateUserDataCached = ()

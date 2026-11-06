@@ -72,9 +72,9 @@ def DBVacuum():
 
     utils.close_ProgressBar("DBVacuum")
 
-def DBOpenRO(DBID, TaskId):
+def DBOpenRO(DBID, TaskId, Timeout=999999):
     DBIDThreadID = f"{DBID}{TaskId}{threading.get_ident()}"
-    DBConnectionsRO[DBIDThreadID] = [sqlite3.connect(f"file:{utils.DatabaseFiles[DBID]}?mode=ro", uri=True, timeout=999999, check_same_thread=False), None]
+    DBConnectionsRO[DBIDThreadID] = [sqlite3.connect(f"file:{utils.DatabaseFiles[DBID]}?mode=ro", uri=True, timeout=Timeout, check_same_thread=False), None]
     DBConnectionsRO[DBIDThreadID][1] = DBConnectionsRO[DBIDThreadID][0].cursor()
     DBConnectionsRO[DBIDThreadID][0].execute("PRAGMA temp_store=MEMORY")
 
