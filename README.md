@@ -12,6 +12,45 @@
 | 发布渠道 | [Releases](https://github.com/wabisabi926/plugin.video.emby/releases) |
 | 许可 | GNU GPL v3 |
 
+## 本分支魔改（12.5.2）
+
+以下为本分支在 narapeka 12.5.1.1 基线之上的魔改，对应 `changelog.txt` 的 `x12.5.2` 段。评分同步、单集 uniqueid 与启动检查点相关的行为以本节为准。
+
+### 评分
+
+Emby 仅暴露单一 `CommunityRating`，不含来源信息。本分支将其拆分为可独立配置的评分项：
+
+| 配置项 | 数据来源 | 写入目标 |
+|---|---|---|
+| 社区评分来源 | `CommunityRating` | `rating` 表，类型由配置决定 |
+| 影评人评分 | `CriticRating` | `tomatometerallcritics`，除以 10 归一化 |
+| 豆瓣评分 | `ProviderIds.DoubanRating` | `douban` |
+| 音乐评分 | 专辑/歌曲 `CommunityRating` | `album.fRating`、`song.rating` |
+
+- 社区评分来源可选 TMDb / IMDb / 豆瓣 / 未知来源 / 不同步；「不同步」只跳过社区评分。
+- 豆瓣评分默认关闭，其余开关默认开启；关闭后不再写入，已有评分在条目下次刷新时移除。
+- 豆瓣分优先采用 `ProviderIds.DoubanRating`；不再做「无豆瓣分退回未知来源」的降级。
+- 构建 Kodi uniqueid 时跳过 `*Rating` 类 ProviderId；更新时仅清理受管的 6 种评分类型。
+- 评分设置位于「同步」分类，选项使用字符串 ID。
+
+### 稳定性修复与启动同步
+
+- 收藏子内容同步：多内容 ID 解析补位，服务器或映射缺失时安全跳过。
+- 启动同步按库隔离：单个库查询失败不影响其他库，失败时保留 UTC 检查点。
+- 关机或异常时回滚检查点；数据库锁等待上限 5 秒，避免阻塞关机。
+- 单集 uniqueid 优先 TMDb，缺失时回退 TVDb。
+- 多版本参数传递：改用 `sys.listitem` 获取路径并做 URL 编码，`sendall` 发送，socket 关闭前判空。
+
+### 构建与发布
+
+- `.github/workflows/release.yml` 在 `core` 分支 `addon.xml` 版本变化时自动打包并发布 Release。
+- Tag 格式 `插件ID-分支-版本`，资产 `<插件ID>-<版本>.zip`；打包排除 `.git`、`.github`、缓存与开发文件。
+- Release 说明取自 `changelog.txt` 对应版本段。
+
+### 版本管理
+
+版本号定义于 `addon.xml` 的 `version` 属性；`changelog.txt` 以 `x<版本号>` 起段。CI 比对推送前后的版本号：变化且同名 Release 不存在时发布。
+
 ## 基线：narapeka 12.5.1.1
 
 以下为 narapeka 的 12.5.1.1 精简定制摘要，对应 `changelog.txt` 的 `12.5.1` 段。
@@ -108,45 +147,6 @@ Gen 从本地同步映射定位源条目所属的 Emby 服务器和 ID，以当�
 - 移除主动删除服务器媒体、备份恢复、代码自动回滚、独立去重工具、合集转标签、电影关联剧集、MV 与歌曲的额外关联，以及相关菜单和设置。服务器通知条目已删除时，仍清理对应的本地资料和缓存。
 - 清理跳转、随机播放、插件自有收藏操作、连接和新内容通知、自动重载皮肤，以及已移除功能的事件、队列、数据库辅助代码和资源。精简暂停同步规则，保留播放、播放状态切换、扫描媒体库和生成视频预览图的暂停选项。移除插件的 HTTP/2 开关和专用流量标记，保留连接超时、TLS 校验及库管理设置。
 - 仅保留英语和简体中文资源，移除未使用的截图、横幅、动态图标、字体和重复的播放对话框。更新记录见 README 与 `changelog.txt`。
-
-## 本分支魔改（12.5.2）
-
-以下为本分支在 narapeka 12.5.1.1 基线之上的魔改，对应 `changelog.txt` 的 `x12.5.2` 段。评分同步、单集 uniqueid 与启动检查点相关的行为以本节为准。
-
-### 评分
-
-Emby 仅暴露单一 `CommunityRating`，不含来源信息。本分支将其拆分为可独立配置的评分项：
-
-| 配置项 | 数据来源 | 写入目标 |
-|---|---|---|
-| 社区评分来源 | `CommunityRating` | `rating` 表，类型由配置决定 |
-| 影评人评分 | `CriticRating` | `tomatometerallcritics`，除以 10 归一化 |
-| 豆瓣评分 | `ProviderIds.DoubanRating` | `douban` |
-| 音乐评分 | 专辑/歌曲 `CommunityRating` | `album.fRating`、`song.rating` |
-
-- 社区评分来源可选 TMDb / IMDb / 豆瓣 / 未知来源 / 不同步；「不同步」只跳过社区评分。
-- 豆瓣评分默认关闭，其余开关默认开启；关闭后不再写入，已有评分在条目下次刷新时移除。
-- 豆瓣分优先采用 `ProviderIds.DoubanRating`；不再做「无豆瓣分退回未知来源」的降级。
-- 构建 Kodi uniqueid 时跳过 `*Rating` 类 ProviderId；更新时仅清理受管的 6 种评分类型。
-- 评分设置位于「同步」分类，选项使用字符串 ID。
-
-### 稳定性修复与启动同步
-
-- 收藏子内容同步：多内容 ID 解析补位，服务器或映射缺失时安全跳过。
-- 启动同步按库隔离：单个库查询失败不影响其他库，失败时保留 UTC 检查点。
-- 关机或异常时回滚检查点；数据库锁等待上限 5 秒，避免阻塞关机。
-- 单集 uniqueid 优先 TMDb，缺失时回退 TVDb。
-- 多版本参数传递：改用 `sys.listitem` 获取路径并做 URL 编码，`sendall` 发送，socket 关闭前判空。
-
-### 构建与发布
-
-- `.github/workflows/release.yml` 在 `core` 分支 `addon.xml` 版本变化时自动打包并发布 Release。
-- Tag 格式 `插件ID-分支-版本`，资产 `<插件ID>-<版本>.zip`；打包排除 `.git`、`.github`、缓存与开发文件。
-- Release 说明取自 `changelog.txt` 对应版本段。
-
-### 版本管理
-
-版本号定义于 `addon.xml` 的 `version` 属性；`changelog.txt` 以 `x<版本号>` 起段。CI 比对推送前后的版本号：变化且同名 Release 不存在时发布。
 
 ## 上游合并
 
