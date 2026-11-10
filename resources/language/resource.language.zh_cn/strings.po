@@ -919,3 +919,7 @@ msgstr "TMDb"
 msgctxt "#33927"
 msgid "IMDb"
 msgstr "IMDb"
+
+msgctxt "#33928"
+msgid "Emby add-on setup is complete.\nRestart Kodi to connect to your server."
+msgstr "Emby 插件首次配置已完成。\n请重新启动 Kodi 以连接服务器。"
