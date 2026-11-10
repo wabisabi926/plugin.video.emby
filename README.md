@@ -6,11 +6,16 @@
 
 | 项目 | 说明 |
 |---|---|
-| 当前版本 | 12.5.2 |
+| 当前版本 | 12.5.3 |
 | 上游基线 | 12.5.1（`next-gen-dev-python3`） |
 | 精简基线 | narapeka 12.5.1.1（`319a9849`） |
 | 发布渠道 | [Releases](https://github.com/wabisabi926/plugin.video.emby/releases) |
 | 许可 | GNU GPL v3 |
+
+## 12.5.3 修复
+
+- 短视频起播后快速停止不再被误标已看。
+- 首次配置完成后提示重启 Kodi。
 
 ## 本分支魔改（12.5.2）
 
