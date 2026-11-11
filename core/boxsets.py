@@ -14,6 +14,7 @@ class BoxSets:
         if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "BoxSet"):
             return False
 
+        PreviousFavourite = int(Item.get("EmbyFavourite") or 0)
         BoxSetKodiParentIds = ()
 
         # Query assigned content for collections
@@ -63,6 +64,13 @@ class BoxSets:
         self.SQLs["video"].common_db.add_artwork(Item['KodiArtwork'], Item['KodiItemId'], "set")
         Item['KodiParentId'] = ",".join(BoxSetKodiParentIds)
         self.SQLs["emby"].add_reference_boxset(Item['Id'], Item['LibraryId'], Item['KodiItemId'], Item['KodiParentId'])
+
+        UserData = Item.get("UserData") or {}
+        IsFavorite = int(bool(UserData["IsFavorite"])) if "IsFavorite" in UserData else PreviousFavourite
+
+        if IsFavorite != PreviousFavourite:
+            Item["IsFavorite"] = IsFavorite
+            self.set_favorite(IsFavorite, Item)
 
         return True
 
