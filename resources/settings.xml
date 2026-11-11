@@ -107,7 +107,7 @@
         </category>
         <category id="playback" label="30516" help="">
             <group id="1" label="33419">
-                <setting label="33417" id="enableSkipIntro" type="boolean" help="">
+                <setting label="33417" id="enableSkipIntro" type="boolean" help="33929">
                     <level>1</level>
                     <default>false</default>
                     <control type="toggle"/>
@@ -124,7 +124,7 @@
                     </dependencies>
                 </setting>
 
-                <setting label="33420" id="enableSkipCredits" type="boolean" help="">
+                <setting label="33420" id="enableSkipCredits" type="boolean" help="33930">
                     <level>1</level>
                     <default>false</default>
                     <control type="toggle"/>

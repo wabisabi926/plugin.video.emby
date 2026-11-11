@@ -296,20 +296,20 @@ msgid "Skip intro"
 msgstr ""
 
 msgctxt "#33418"
-msgid "A message box will ask for jump to intro end position"
-msgstr ""
+msgid "Shows a skip button during the intro range; select it to jump to the intro end, or press Back to continue."
+msgstr "Shows a skip button during the intro range; select it to jump to the intro end, or press Back to continue."
 
 msgctxt "#33419"
 msgid "Markers"
-msgstr ""
+msgstr "Intro & credits"
 
 msgctxt "#33420"
 msgid "Skip credits"
 msgstr ""
 
 msgctxt "#33421"
-msgid "A message box will ask for skip credits"
-msgstr ""
+msgid "Shows a skip button at the credits marker; select it to jump to the end, or press Back to continue."
+msgstr "Shows a skip button at the credits marker; select it to jump to the end, or press Back to continue."
 
 msgctxt "#33422"
 msgid "Ask skip intro"
@@ -923,3 +923,12 @@ msgstr "IMDb"
 msgctxt "#33928"
 msgid "Emby add-on setup is complete.\nRestart Kodi to connect to your server."
 msgstr ""
+
+msgctxt "#33929"
+msgid "Automatically jumps to the intro end when playback enters the intro range."
+msgstr "Automatically jumps to the intro end when playback enters the intro range."
+
+
+msgctxt "#33930"
+msgid "Automatically jumps to the end when playback reaches the credits marker."
+msgstr "Automatically jumps to the end when playback reaches the credits marker."
