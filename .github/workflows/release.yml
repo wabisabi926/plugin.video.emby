@@ -3,6 +3,8 @@ name: Release addon
 on:
   push:
     branches: [core]
+    tags:
+      - 'plugin.service.emby-next-gen-core-*'
     paths:
       - addon.xml
 
@@ -38,7 +40,11 @@ jobs:
           fi
           echo "previous=$PREV current=$VERSION"
 
-          TAG="${ADDON_ID}-${GITHUB_REF_NAME}-${VERSION}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="${ADDON_ID}-${GITHUB_REF_NAME}-${VERSION}"
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if [ "$PREV" = "$VERSION" ]; then
             echo "Version unchanged; skip release."
