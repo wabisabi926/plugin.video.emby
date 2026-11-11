@@ -6,7 +6,7 @@
 
 | 项目 | 说明 |
 |---|---|
-| 当前版本 | 12.5.3 |
+| 当前版本 | 12.5.4 |
 | 上游基线 | 12.5.1（`next-gen-dev-python3`） |
 | 精简基线 | narapeka 12.5.1.1（`319a9849`） |
 | 发布渠道 | [Releases](https://github.com/wabisabi926/plugin.video.emby/releases) |
@@ -17,9 +17,15 @@
 官方 MediaBrowser `next-gen-dev-python3` 12.5.2（`390d9ed8`，合并提交 `63deebec`）已完成评估，后续上游对比不再重复提出：
 
 - 已移植（按 core 结构适配）：BoxSet 收藏在缺少 Emby DB 时跳过更新；HTTP 请求锁释放保护（`RequestBusy`）。
-- 不采用：播放列表收藏修复（core 已改用 `get_Records_by_EmbyType("Playlist")` 新实现）；分页默认值（core 无对应 paging 设置）；版本号/changelog（core 12.5.3，不回退到 12.5.2）。
+- 不采用：播放列表收藏修复（core 已改用 `get_Records_by_EmbyType("Playlist")` 新实现）；分页默认值（core 无对应 paging 设置）；版本号/changelog（core 12.5.4，不回退到 12.5.2）。
 
 对应提交：`ff4124a0`、`b41c74c8`。
+
+## 12.5.4 修复
+
+- BoxSet 收藏同步在缺少 Emby 数据库时不再报错。
+- 提升高并发网络请求下的稳定性。
+- 片头片尾跳过设置的标签与帮助文案更准确。
 
 ## 12.5.3 修复
 
