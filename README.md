@@ -12,6 +12,15 @@
 | 发布渠道 | [Releases](https://github.com/wabisabi926/plugin.video.emby/releases) |
 | 许可 | GNU GPL v3 |
 
+## 上游移植记录
+
+官方 MediaBrowser `next-gen-dev-python3` 12.5.2（`390d9ed8`，合并提交 `63deebec`）已完成评估，后续上游对比不再重复提出：
+
+- 已移植（按 core 结构适配）：BoxSet 收藏在缺少 Emby DB 时跳过更新；HTTP 请求锁释放保护（`RequestBusy`）。
+- 不采用：播放列表收藏修复（core 已改用 `get_Records_by_EmbyType("Playlist")` 新实现）；分页默认值（core 无对应 paging 设置）；版本号/changelog（core 12.5.3，不回退到 12.5.2）。
+
+对应提交：`ff4124a0`、`b41c74c8`。
+
 ## 12.5.3 修复
 
 - 短视频起播后快速停止不再被误标已看。
