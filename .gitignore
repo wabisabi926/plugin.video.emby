@@ -13,7 +13,6 @@ build/
 *.egg-info/
 
 # Local documentation and debug artifacts
-/tests/
 /docs/
 /debug/
 /logs/

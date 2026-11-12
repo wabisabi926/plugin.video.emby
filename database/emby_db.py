@@ -1,6 +1,7 @@
+import time
 import xbmc
 from helper import utils, versions
-from . import common_db
+from . import common_db, schema
 
 EmbyTypes = ("Movie", "Series", "Season", "Episode", "Audio", "MusicAlbum", "MusicArtist", "Genre", "MusicGenre", "Video", "MusicVideo", "BoxSet", "Tag", "Studio", "Playlist", "Person", "Folder")
 EmbyFolderTypes = ("Series", "Season", "MusicAlbum", "MusicArtist", "Genre", "MusicGenre", "BoxSet", "Tag", "Studio", "Playlist", "Person", "Folder")
@@ -12,240 +13,51 @@ class EmbyDatabase:
         self.common_db = common_db.CommonDatabase(cursor)
 
     def init_EmbyDB(self):
-        Invalid = False
+        Connection = self.cursor.connection
 
-        # Table
         try:
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Genre (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, EmbyArtwork TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Studio (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, EmbyArtwork TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Tag (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, Memo TEXT COLLATE NOCASE, EmbyArtwork TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Person (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Folder (EmbyId INTEGER PRIMARY KEY, EmbyFolder TEXT COLLATE NOCASE, EmbyMetaData TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Movie (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, KodiFileId INTEGER, EmbyPresentationKey TEXT COLLATE NOCASE, EmbyFolder TEXT COLLATE NOCASE, KodiPathId INTEGER) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Video (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, KodiFileId INTEGER, EmbyPresentationKey TEXT COLLATE NOCASE, EmbyFolder TEXT COLLATE NOCASE, KodiPathId INTEGER, EmbyParentId INTEGER) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS BoxSet (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, KodiParentId TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Series (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, EmbyPresentationKey TEXT COLLATE NOCASE, KodiPathId INTEGER) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Season (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, KodiParentId INTEGER, EmbyPresentationKey TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Episode (EmbyId INTEGER PRIMARY KEY, KodiId INTEGER, EmbyFavourite BOOL, KodiFileId INTEGER, KodiParentId INTEGER, EmbyPresentationKey TEXT COLLATE NOCASE, EmbyFolder TEXT COLLATE NOCASE, KodiPathId INTEGER) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS MusicArtist (EmbyId INTEGER PRIMARY KEY, KodiId TEXT COLLATE NOCASE, EmbyFavourite BOOL, LibraryIds TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS MusicGenre (EmbyId INTEGER PRIMARY KEY, KodiId TEXT COLLATE NOCASE, EmbyFavourite BOOL, LibraryIds TEXT COLLATE NOCASE, EmbyArtwork TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS MusicVideo (EmbyId INTEGER PRIMARY KEY, KodiId TEXT COLLATE NOCASE, EmbyFavourite BOOL, KodiFileId TEXT COLLATE NOCASE, EmbyPresentationKey TEXT COLLATE NOCASE, EmbyFolder TEXT COLLATE NOCASE, KodiPathId TEXT COLLATE NOCASE, LibraryIds TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS MusicAlbum (EmbyId INTEGER PRIMARY KEY, KodiId TEXT COLLATE NOCASE, EmbyFavourite BOOL, LibraryIds TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Audio (EmbyId INTEGER PRIMARY KEY, KodiId TEXT COLLATE NOCASE, EmbyFavourite BOOL, EmbyFolder TEXT COLLATE NOCASE, KodiPathId INTEGER, LibraryIds TEXT COLLATE NOCASE, EmbyParentId INTEGER) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS Playlist (EmbyId INTEGER PRIMARY KEY, KodiId TEXT COLLATE NOCASE, EmbyFavourite BOOL, EmbyArtwork TEXT COLLATE NOCASE, EmbyLinkedId TEXT COLLATE NOCASE, Name TEXT COLLATE NOCASE) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS MediaSources (EmbyId INTEGER, MediaSourceId TEXT COLLATE NOCASE, Path TEXT COLLATE NOCASE, Name TEXT COLLATE NOCASE, Size INTEGER, IntroStart INTEGER, IntroEnd INTEGER, CreditsStart INTEGER, PRIMARY KEY(EmbyId, MediaSourceId))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS VideoStreams (EmbyId INTEGER, MediaSourceId TEXT COLLATE NOCASE, EmbyIndex INTEGER, Codec TEXT COLLATE NOCASE, BitRate INTEGER, Width INTEGER, KodiIndex INTEGER, PRIMARY KEY(EmbyId, MediaSourceId, EmbyIndex))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS AudioStreams (EmbyId INTEGER, MediaSourceId TEXT COLLATE NOCASE, EmbyIndex INTEGER, DisplayTitle TEXT COLLATE NOCASE, Codec TEXT COLLATE NOCASE, BitRate INTEGER, KodiIndex INTEGER, PRIMARY KEY(EmbyId, MediaSourceId, EmbyIndex))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS SubtitleStreams (EmbyId INTEGER, MediaSourceId TEXT COLLATE NOCASE, EmbyIndex INTEGER, Codec TEXT COLLATE NOCASE, Language TEXT COLLATE NOCASE, DisplayTitle TEXT COLLATE NOCASE, External BOOL, KodiIndex INTEGER, PRIMARY KEY(EmbyId, MediaSourceId, EmbyIndex))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS RemoveItems (EmbyId INTEGER, EmbyLibraryId TEXT COLLATE NOCASE, PRIMARY KEY (EmbyId, EmbyLibraryId))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS UpdateItems (EmbyId INTEGER, EmbyRequestContent TEXT COLLATE NOCASE, EmbyLibraryId TEXT COLLATE NOCASE, KodiDB TEXT COLLATE NOCASE, PRIMARY KEY(EmbyId, KodiDB))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS UserdataItems (EmbyId INTEGER PRIMARY KEY, EmbyType TEXT COLLATE NOCASE, EmbyPlaybackPositionTicks INT, EmbyPlayCount INT, EmbyIsFavorite BOOL, EmbyPlayed BOOL, EmbyLastPlayedDate TEXT COLLATE NOCASE, PlayedPercentage INT, UnplayedItemCount INT) WITHOUT ROWID")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS LibrarySynced (EmbyLibraryId TEXT COLLATE NOCASE, EmbyLibraryName TEXT COLLATE NOCASE, EmbyType TEXT COLLATE NOCASE, KodiDBs TEXT COLLATE NOCASE, PRIMARY KEY(EmbyLibraryId, EmbyLibraryName, EmbyType))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS LibrarySyncedMirrow (EmbyLibraryId TEXT COLLATE NOCASE, EmbyLibraryName TEXT COLLATE NOCASE, EmbyType TEXT COLLATE NOCASE, KodiDBs TEXT COLLATE NOCASE, PRIMARY KEY(EmbyLibraryId, EmbyLibraryName, EmbyType))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS LastIncrementalSync (Date TEXT)")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS LastIncrementalSyncStart (Date TEXT)")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS LibraryAdd (EmbyLibraryId TEXT COLLATE NOCASE, EmbyLibraryName TEXT COLLATE NOCASE, EmbyType TEXT COLLATE NOCASE, KodiDBs TEXT COLLATE NOCASE, PRIMARY KEY(EmbyLibraryId, EmbyLibraryName, EmbyType, KodiDBs))")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS LibraryRemove (EmbyLibraryId TEXT COLLATE NOCASE PRIMARY KEY, EmbyLibraryName TEXT COLLATE NOCASE)")
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS EmbyLibraryMapping (EmbyLibraryId TEXT COLLATE NOCASE, EmbyId INTEGER, EmbyMusicAlbumId INTEGER NOT NULL DEFAULT 0, EmbyMusicArtistId INTEGER NOT NULL DEFAULT 0, EmbyMusicGenreId INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (EmbyLibraryId, EmbyId, EmbyMusicAlbumId, EmbyMusicArtistId, EmbyMusicGenreId))")
+            if schema.schema_needs_migration(Connection):
+                self.backup_EmbyDB(Connection)
+                schema.ensure_schema(Connection)
+        except Exception as Error: # Keep the database intact for manual recovery
+            xbmc.log(f"EMBY.database.emby_db: Cannot migrate the Emby database: {Error}", xbmc.LOGERROR)
+
+            try:
+                Connection.rollback()
+                self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            except Exception as RollbackError:
+                xbmc.log(f"EMBY.database.emby_db: Database rollback failed: {RollbackError}", xbmc.LOGERROR)
 
-            # Verify tables
-            self.cursor.execute("SELECT name FROM pragma_table_info('Genre')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('EmbyArtwork',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Studio')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('EmbyArtwork',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Tag')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('Memo',), ('EmbyArtwork',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Person')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Folder')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('EmbyFolder',), ('EmbyMetaData',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Movie')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('KodiFileId',), ('EmbyPresentationKey',), ('EmbyFolder',), ('KodiPathId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Video')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('KodiFileId',), ('EmbyPresentationKey',), ('EmbyFolder',), ('KodiPathId',), ('EmbyParentId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('BoxSet')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('KodiParentId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Series')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('EmbyPresentationKey',), ('KodiPathId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Season')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('KodiParentId',), ('EmbyPresentationKey',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Episode')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('KodiFileId',), ('KodiParentId',), ('EmbyPresentationKey',), ('EmbyFolder',), ('KodiPathId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('MusicArtist')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('LibraryIds',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('MusicGenre')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('LibraryIds',), ('EmbyArtwork',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('MusicVideo')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('KodiFileId',), ('EmbyPresentationKey',), ('EmbyFolder',), ('KodiPathId',), ('LibraryIds',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('MusicAlbum')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('LibraryIds',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Audio')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('EmbyFolder',), ('KodiPathId',), ('LibraryIds',), ('EmbyParentId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('Playlist')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('KodiId',), ('EmbyFavourite',), ('EmbyArtwork',), ('EmbyLinkedId',), ('Name',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('MediaSources')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('MediaSourceId',), ('Path',), ('Name',), ('Size',), ('IntroStart',), ('IntroEnd',), ('CreditsStart',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('VideoStreams')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('MediaSourceId',), ('EmbyIndex',), ('Codec',), ('BitRate',), ('Width',), ('KodiIndex',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('AudioStreams')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('MediaSourceId',), ('EmbyIndex',), ('DisplayTitle',), ('Codec',), ('BitRate',), ('KodiIndex',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('SubtitleStreams')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('MediaSourceId',), ('EmbyIndex',), ('Codec',), ('Language',), ('DisplayTitle',), ('External',), ('KodiIndex',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('RemoveItems')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('EmbyLibraryId',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('UpdateItems')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('EmbyRequestContent',), ('EmbyLibraryId',), ('KodiDB',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('UserdataItems')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyId',), ('EmbyType',), ('EmbyPlaybackPositionTicks',), ('EmbyPlayCount',), ('EmbyIsFavorite',), ('EmbyPlayed',), ('EmbyLastPlayedDate',), ('PlayedPercentage',), ('UnplayedItemCount',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('LibrarySynced')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyLibraryId',), ('EmbyLibraryName',), ('EmbyType',), ('KodiDBs',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('LibrarySyncedMirrow')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyLibraryId',), ('EmbyLibraryName',), ('EmbyType',), ('KodiDBs',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('LastIncrementalSync')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('Date',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('LastIncrementalSyncStart')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('Date',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('LibraryAdd')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyLibraryId',), ('EmbyLibraryName',), ('EmbyType',), ('KodiDBs',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('LibraryRemove')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyLibraryId',), ('EmbyLibraryName',)]:
-                Invalid = True
-
-            self.cursor.execute("SELECT name FROM pragma_table_info('EmbyLibraryMapping')")
-            Cols = self.cursor.fetchall()
-
-            if Cols != [('EmbyLibraryId',), ('EmbyId',), ('EmbyMusicAlbumId',), ('EmbyMusicArtistId',), ('EmbyMusicGenreId',)]:
-                Invalid = True
-
-            if not Invalid:
-                self.add_Index()
-        except Exception as Error: # Database invalid! Database reset mandatory
-            xbmc.log(f"EMBY.database.emby_db: Cannot initialize the Emby database: {Error}", xbmc.LOGERROR)
-            Invalid = True
-
-        if Invalid:
-            self.common_db.delete_tables("Emby")
             return False
 
+        self.add_Index()
         return True
+
+    def backup_EmbyDB(self, Connection):
+        Tables = self.cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchone()[0]
+
+        if not Tables:
+            return
+
+        DatabasePath = None
+
+        for _, Name, File in self.cursor.execute("PRAGMA database_list").fetchall():
+            if Name == "main" and File:
+                DatabasePath = File
+                break
+
+        if not DatabasePath:
+            return
+
+        BackupPath = f"{DatabasePath}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+        Connection.commit()
+
+        try: # VACUUM INTO requires no open transaction and is WAL-safe
+            self.cursor.execute("VACUUM INTO ?", (BackupPath,))
+        finally:
+            self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+
+        xbmc.log(f"EMBY.database.emby_db: Database backup created: {BackupPath}", xbmc.LOGINFO)
 
     def add_Index(self):
         try: # xbox issue

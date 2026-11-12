@@ -350,6 +350,11 @@ def setup():
         utils.set_settings('MinimumSetup', utils.MinimumVersion)
         return "OPENLIBRARY"
 
+    if utils.MinimumSetup == "INVALID DATABASE":
+        xbmc.log("EMBY.hooks.monitor: Startup stopped: database migration failed and the database was kept", xbmc.LOGERROR)
+        utils.Dialog.ok(heading=utils.addon_name, message=utils.Translate(33931))
+        return "stop"
+
     if utils.MinimumSetup == utils.MinimumVersion:
         return True
 
@@ -367,11 +372,8 @@ def setup():
 
         return True
 
-    if utils.sleep(10): # Give Kodi time to load skin
-        return "stop"
-
-    pluginmenu.factoryreset(utils.Translate(33222))
-    return "stop"
+    # Older settings without a schema problem: let the library load and update MinimumSetup there.
+    return True
 
 def wait_PlayerEventsQueue():
     if player.EmbyPlaying and player.PlayingItem["EmbyServer"]:

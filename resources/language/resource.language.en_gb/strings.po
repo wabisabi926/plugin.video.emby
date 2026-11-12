@@ -932,3 +932,8 @@ msgstr "Automatically jumps to the intro end when playback enters the intro rang
 msgctxt "#33930"
 msgid "Automatically jumps to the end when playback reaches the credits marker."
 msgstr "Automatically jumps to the end when playback reaches the credits marker."
+
+
+msgctxt "#33931"
+msgid "The local Emby database could not be migrated. The original database was kept and backed up next to it. Check the Kodi log, then run a factory reset from Emby Gen settings if the problem persists."
+msgstr ""

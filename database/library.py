@@ -169,6 +169,9 @@ class Library:
 
         if SQLs["emby"].init_EmbyDB():
             self.load_LibrarySynced(SQLs)
+
+            if utils.MinimumSetup != utils.MinimumVersion:
+                utils.set_settings('MinimumSetup', utils.MinimumVersion)
         else:
             utils.set_settings('MinimumSetup', "INVALID DATABASE")
             self.close_EmbyDBRW("load_settings", SQLs)

@@ -932,3 +932,8 @@ msgstr "进入片头区间后自动跳转至片头结束位置。"
 msgctxt "#33930"
 msgid "Automatically jumps to the end when playback reaches the credits marker."
 msgstr "到达片尾标记后自动跳转至结尾。"
+
+
+msgctxt "#33931"
+msgid "The local Emby database could not be migrated. The original database was kept and backed up next to it. Check the Kodi log, then run a factory reset from Emby Gen settings if the problem persists."
+msgstr "本地 Emby 数据库迁移失败。原数据库已保留，并在其旁边生成了备份。请查看 Kodi 日志；如果问题仍然存在，请在 Emby Gen 设置中手动恢复出厂设置。"
