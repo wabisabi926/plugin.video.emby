@@ -13,6 +13,12 @@ LockPauseBusy = threading.Lock()
 LockLowPriorityWorkers = threading.Lock()
 LockLibraryOps = threading.Lock()
 
+# Lost item check: parent types only, children (Season/Episode) cascade from them.
+ReconcileEmbyTypes = ("Movie", "Series", "Video", "MusicVideo", "MusicAlbum")
+# Never auto-remove when most of a type disappeared: that is a library reset, not a cleanup.
+ReconcileMaxRemovalPercent = 50
+
+
 class Library:
     def __init__(self, ServerData, API, Views, LibrarySynced, LibrarySyncedNames, LibrarySyncedContent, LibrarySyncedKodiDBs):
         self.ServerData = ServerData
@@ -41,6 +47,7 @@ class Library:
         self.LibraryRemoveCleanId = f"{ServerData['ServerId']}_library_remove_clean"
         self.KodiStartSyncId = f"{ServerData['ServerId']}_kodi_start_sync"
         self.SelectLibrariesId = f"{ServerData['ServerId']}_select_libraries"
+        self.ReconcileId = f"{ServerData['ServerId']}_reconcile"
         self.JobBusy = False
 
     # Wait for database init
@@ -381,6 +388,11 @@ class Library:
                     self.userdata(UpdateData[1], False, False)
 
             utils.update_SyncPause(self.ServerStartSyncId, False)
+
+            # Catch removals the Kodi companion lost; queued items are handled by RunJobs below.
+            if not FailedChanges:
+                self.reconcile_removed()
+
             self.RunJobs(False, True)
 
         # Never advance the checkpoint if a library change query failed; the
@@ -1349,7 +1361,85 @@ class Library:
                 if not utils.SyncPause.get(self.ServerBusyId, False):
                     self.worker_remove(IncrementalSync)
 
-    # Add item_id to removed queue
+    # Emby's Kodi companion SyncQueue is the only removal source, and it drops events during
+    # bulk cleanups: local items the server no longer has would stay behind forever.
+    # Compare the local mapping with what the server still reports and queue the difference.
+    def reconcile_removed(self):  # threaded by caller
+        if utils.SystemShutdown or not utils.reconcilelostitems:
+            return 0
+
+        EmbyTypes = []
+
+        for _, _, LibrarySyncedEmbyType, _ in self.LibrarySynced:
+            if LibrarySyncedEmbyType in ReconcileEmbyTypes and LibrarySyncedEmbyType not in EmbyTypes:
+                EmbyTypes.append(LibrarySyncedEmbyType)
+
+        if not EmbyTypes:
+            return 0
+
+        if self.API.is_library_scan_running():
+            xbmc.log("EMBY.database.library: Lost item check skipped, a library scan is running", xbmc.LOGINFO)
+            return 0
+
+        EmbyDB = dbio.DBOpenRO(self.ServerData['ServerId'], self.ReconcileId)
+        LocalIds = {EmbyType: EmbyDB.get_EmbyIds_by_EmbyType(EmbyType) for EmbyType in EmbyTypes}
+        dbio.DBCloseRO(self.ServerData['ServerId'], self.ReconcileId)
+        del EmbyDB
+        LostIds = []
+
+        for EmbyType in EmbyTypes:
+            LocalIdsType = set(LocalIds[EmbyType])
+
+            if not LocalIdsType:
+                continue
+
+            ServerIds = set()
+            QueryFailed = False
+
+            for LibrarySyncedId, _, LibrarySyncedEmbyType, _ in self.LibrarySynced:
+                if LibrarySyncedEmbyType != EmbyType:
+                    continue
+
+                Ids = self.API.get_item_ids(LibrarySyncedId, EmbyType)
+
+                if Ids is None:
+                    QueryFailed = True
+                    break
+
+                ServerIds.update(Ids)
+
+            if QueryFailed:
+                xbmc.log(f"EMBY.database.library: Lost item check aborted for {EmbyType}, server query failed", xbmc.LOGWARNING)
+                continue
+
+            Missing = LocalIdsType.difference(ServerIds)
+
+            if not Missing:
+                continue
+
+            # Second opinion: a library listing can be partial while the server is still working on it.
+            StillExists = self.API.get_existing_ids(Missing)
+
+            if StillExists is None:
+                xbmc.log(f"EMBY.database.library: Lost item check aborted for {EmbyType}, verification failed", xbmc.LOGWARNING)
+                continue
+
+            Missing.difference_update(StillExists)
+
+            if not Missing:
+                continue
+
+            if len(Missing) * 100 > len(LocalIdsType) * ReconcileMaxRemovalPercent:
+                xbmc.log(f"EMBY.database.library: Lost item check refused for {EmbyType}, {len(Missing)} of {len(LocalIdsType)} items are missing. Use 'Repair library' instead", xbmc.LOGWARNING)
+                continue
+
+            xbmc.log(f"EMBY.database.library: Lost item check found {len(Missing)} of {len(LocalIdsType)} {EmbyType} items no longer on the server", xbmc.LOGINFO)
+            LostIds += list(Missing)
+
+        if LostIds:
+            self.removed(tuple(LostIds), False, False)
+
+        return len(LostIds)
 
     def Worker_is_paused(self, WorkerId):
         for Key, Busy in list(utils.SyncPause.items()):

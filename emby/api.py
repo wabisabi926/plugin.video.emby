@@ -680,6 +680,69 @@ class API:
         _, _, Payload = self.http.request("GET", f"Emby.Kodi.SyncQueue/{self.ServerData['UserId']}/GetItems", {'LastUpdateDT': date}, {}, False, "", None, "")
         return Payload
 
+    def get_item_ids(self, ParentId, EmbyType):
+        """All server ids of one library/type. None when the answer cannot be trusted."""
+        Ids = set()
+        StartIndex = 0
+        Limit = 500
+
+        while True:
+            Status, _, Payload = self.http.request("GET", "Items", {
+                'ParentId': ParentId, 'Recursive': True, 'IncludeItemTypes': EmbyType, 'Fields': "Id",
+                'EnableImages': False, 'EnableUserData': False, 'EnableTotalRecordCount': False,
+                'SortBy': "None", 'StartIndex': StartIndex, 'Limit': Limit
+            }, {}, False, "", None, "")
+
+            if Status != 200 or not isinstance(Payload, dict) or not isinstance(Payload.get('Items'), list):
+                return None
+
+            Items = Payload['Items']
+
+            for Item in Items:
+                if 'Id' in Item:
+                    Ids.add(int(Item['Id']))
+
+            if len(Items) < Limit or utils.SystemShutdown:
+                return Ids
+
+            StartIndex += Limit
+
+    def get_existing_ids(self, Ids):
+        """The subset of Ids the server still knows about. None when the answer cannot be trusted."""
+        Existing = set()
+        Ids = list(Ids)
+
+        for Index in range(0, len(Ids), 100):
+            Batch = Ids[Index:Index + 100]
+            Status, _, Payload = self.http.request("GET", "Items", {
+                'Ids': ",".join(str(Id) for Id in Batch), 'Fields': "Id", 'EnableImages': False,
+                'EnableUserData': False, 'EnableTotalRecordCount': False, 'Limit': len(Batch)
+            }, {}, False, "", None, "")
+
+            if Status != 200 or not isinstance(Payload, dict) or not isinstance(Payload.get('Items'), list):
+                return None
+
+            for Item in Payload['Items']:
+                if 'Id' in Item:
+                    Existing.add(int(Item['Id']))
+
+            if utils.SystemShutdown:
+                return None
+
+        return Existing
+
+    def is_library_scan_running(self):
+        _, _, Payload = self.http.request("GET", "ScheduledTasks", {}, {}, False, "", None, "")
+
+        if not isinstance(Payload, list):  # Unknown state: caller must not treat it as "nothing is running"
+            return True
+
+        for Task in Payload:
+            if Task.get('Key') == "RefreshLibrary" and Task.get('State') == "Running":
+                return True
+
+        return False
+
     def set_progress(self, Id, Progress, PlayCount):
         self.http.Queues["ASYNC"].put((("POST", f"Users/{self.ServerData['UserId']}/Items/{Id}/UserData", {"PlaybackPositionTicks": Progress, "PlayCount": PlayCount, "Played": bool(PlayCount)}, False),))
 

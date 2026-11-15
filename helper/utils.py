@@ -69,6 +69,7 @@ busyMsg = False
 offlineMsg = True
 websocketenabled = True
 startsyncenabled = True
+reconcilelostitems = True
 FolderAddonUserdata = "special://profile/addon_data/plugin.service.emby-next-gen/"
 FolderEmbyTemp = "special://profile/addon_data/plugin.service.emby-next-gen/temp/"
 FolderUserdataThumbnails = "special://profile/Thumbnails/"
@@ -881,6 +882,7 @@ def InitSettings():
     load_settings_bool('WizardCompleted')
     load_settings_bool('websocketenabled')
     load_settings_bool('startsyncenabled')
+    load_settings_bool('reconcilelostitems')
     load_settings_bool('SyncFavorites')
     load_settings_bool('PauseSyncDuringPlaybackStateChange')
 

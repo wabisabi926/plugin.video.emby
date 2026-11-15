@@ -39,6 +39,12 @@
                     <control type="toggle"/>
                 </setting>
 
+                <setting label="33940" id="reconcilelostitems" type="boolean" help="33941">
+                    <level>2</level>
+                    <default>true</default>
+                    <control type="toggle"/>
+                </setting>
+
                 <setting id="SyncFavorites" label="33564" type="boolean" help="33565">
                     <level>1</level>
                     <default>true</default>

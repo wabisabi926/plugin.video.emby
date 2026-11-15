@@ -1264,6 +1264,10 @@ class EmbyDatabase:
         self.cursor.execute("SELECT EmbyId FROM BoxSet")
         return self.cursor.fetchall()
 
+    def get_EmbyIds_by_EmbyType(self, EmbyType):
+        self.cursor.execute(f"SELECT EmbyId FROM {EmbyType}")
+        return [EmbyId[0] for EmbyId in self.cursor.fetchall()]
+
 
     def get_KodiId_by_EmbyId(self, EmbyId):
         for EmbyType in EmbyTypesWithKodiId:

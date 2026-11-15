@@ -937,3 +937,13 @@ msgstr "Automatically jumps to the end when playback reaches the credits marker.
 msgctxt "#33931"
 msgid "The local Emby database could not be migrated. The original database was kept and backed up next to it. Check the Kodi log, then run a factory reset from Emby Gen settings if the problem persists."
 msgstr ""
+
+
+msgctxt "#33940"
+msgid "Remove items deleted on the server"
+msgstr "Remove items deleted on the server"
+
+
+msgctxt "#33941"
+msgid "Checks on startup whether the media server still reports every synced item and removes the ones that are gone. Covers bulk cleanups the Kodi companion sync queue drops. Skipped while the server scans its library."
+msgstr ""
