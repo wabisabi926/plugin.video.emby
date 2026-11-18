@@ -36,6 +36,8 @@ class Episode:
         if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Episode"):
             return False
 
+        common.sync_bluray_references(Item, self.SQLs, 'Episode')
+
         common.set_RunTimeTicks(Item)
         common.set_streams(Item)
         common.set_chapters(Item, self.Library.ServerData['ServerId'])
@@ -69,9 +71,16 @@ class Episode:
         if not Item['ParentIndexNumber'] and Item['ParentIndexNumber'] != 0:
             Item['ParentIndexNumber'] = SeasonNumber
 
+        PreserveFileState = False
         if Item['UpdateItem']:
-            common.delete_ContentItemReferences(Item['KodiItemId'], Item['KodiFileId'], self.SQLs, "episode", False, Item['MediaSources'][0]['KodiStreams']['Subtitle'] or Item['MediaSources'][0]['KodiStreams']['Audio'] or Item['MediaSources'][0]['KodiStreams']['Video'])
             common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
+            PreserveFileState = common.update_bluray_path(Item, self.SQLs, 'Episode')
+            if PreserveFileState:
+                common.delete_ContentItemMetadata(Item['KodiItemId'], self.SQLs, 'episode', False)
+            else:
+                Streams = Item['MediaSources'][0]['KodiStreams']
+                common.delete_ContentItemReferences(Item['KodiItemId'], Item['KodiFileId'], self.SQLs,
+                                                    'episode', False, Streams['Subtitle'] or Streams['Audio'] or Streams['Video'])
             common.set_multipart(Item, self.Library)
         else:
             Item['KodiItemId'] = self.SQLs["video"].create_entry_episode()
@@ -80,7 +89,8 @@ class Episode:
             common.set_multipart(Item, self.Library)
             Item['KodiPathId'] = self.SQLs["video"].get_add_path(Item['KodiPath'], None)
 
-        common.set_VideoCommon(Item['KodiItemId'], Item['KodiFileId'], Item, self.SQLs, "episode")
+        common.set_VideoCommon(Item['KodiItemId'], Item['KodiFileId'], Item, self.SQLs, "episode",
+                               PreserveFileState=PreserveFileState)
         common.set_Genre_links(Item['KodiItemId'], self.SQLs, "episode", Item["GenreItems"])
         common.set_Studio_links(Item['KodiItemId'], self.SQLs, "episode", Item["Studios"])
         common.set_Actor_links(Item['KodiItemId'], self.SQLs, "episode", Item["CastItems"],

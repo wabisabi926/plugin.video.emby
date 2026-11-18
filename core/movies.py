@@ -25,10 +25,13 @@ class Movies:
         if not common.load_ExistingItem(Item, self.Library, self.SQLs["emby"], "Movie"):
             return False
 
+        common.sync_bluray_references(Item, self.SQLs, 'Movie')
+
         # Rebuild only when the version members or their ownership have changed.
         isMultiVersion = False
         Item["KodiSetId"] = None
         VersionUpdates = {}
+        PreserveFileState = False
 
         if Item['UpdateItem']:
             MultiVersionsFound = self.SQLs["emby"].get_movieversions(Item['Id'])
@@ -72,20 +75,23 @@ class Movies:
         self.SQLs["emby"].add_streamdata(Item['Id'], Item['MediaSources'])
 
         if Item['UpdateItem'] and not isMultiVersion:
-            if VersionUpdates:
+            common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
+            PreserveBluray = common.update_bluray_path(Item, self.SQLs, 'Movie')
+            PreserveFileState = bool(VersionUpdates) or PreserveBluray
+            if PreserveFileState:
                 common.delete_ContentItemMetadata(Item['KodiItemId'], self.SQLs, "movie", False)
             else:
                 common.delete_ContentItemReferences(Item['KodiItemId'], Item['KodiFileId'], self.SQLs, "movie", False, Item['MediaSources'][0]['KodiStreams']['Subtitle'] or Item['MediaSources'][0]['KodiStreams']['Audio'] or Item['MediaSources'][0]['KodiStreams']['Video'])
-            common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
             common.set_multipart(Item, self.Library)
         else:
+            Item.pop('KodiBlurayFiles', None)
             Item['KodiItemId'] = self.SQLs["video"].create_movie_entry()
             Item['KodiFileId'] = self.SQLs["video"].create_entry_file()
             common.set_path_filename(Item, self.Library.ServerData['ServerId'], None)
             common.set_multipart(Item, self.Library)
             Item['KodiPathId'] = self.SQLs['video'].get_add_path(Item['KodiPath'], "movies")
 
-        common.set_VideoCommon(Item['KodiItemId'], Item['KodiFileId'], Item, self.SQLs, "movie", PreserveFileState=bool(VersionUpdates))
+        common.set_VideoCommon(Item['KodiItemId'], Item['KodiFileId'], Item, self.SQLs, "movie", PreserveFileState=PreserveFileState)
         common.set_Genre_links(Item['KodiItemId'], self.SQLs, "movie", Item["GenreItems"])
         common.set_Studio_links(Item['KodiItemId'], self.SQLs, "movie", Item["Studios"])
         common.set_Tag_links(Item['KodiItemId'], self.SQLs, "movie", Item["TagItems"])
@@ -103,7 +109,7 @@ class Movies:
             Item['ProductionLocations'].append(None)
 
         if Item['UpdateItem'] and not isMultiVersion:
-            self.SQLs["video"].update_movie(Item['KodiItemId'], Item['KodiFileId'], Item['Name'], Item['Overview'], Item['ShortOverview'], Item['Tagline'], Item['KodiRatingId'], Item['Writers'], Item['KodiArtwork']['poster'], Item['KodiUniqueId'], Item['SortName'], Item['KodiRunTimeTicks'], Item['OfficialRating'], Item['Genre'], Item['Directors'], Item['OriginalTitle'], Item['Studio'], None, Item['KodiArtwork']['fanart'].get('fanart', None), Item['ProductionLocations'][0], Item['KodiPremiereDate'], None, Item['KodiFilename'], Item['KodiStackedFilename'], Item['KodiDateCreated'], Item['MediaSources'][0]['Name'], Item['KodiPathId'], Item['KodiPath'], Item['KodiFullPath'], PreserveVersions=bool(VersionUpdates))
+            self.SQLs["video"].update_movie(Item['KodiItemId'], Item['KodiFileId'], Item['Name'], Item['Overview'], Item['ShortOverview'], Item['Tagline'], Item['KodiRatingId'], Item['Writers'], Item['KodiArtwork']['poster'], Item['KodiUniqueId'], Item['SortName'], Item['KodiRunTimeTicks'], Item['OfficialRating'], Item['Genre'], Item['Directors'], Item['OriginalTitle'], Item['Studio'], None, Item['KodiArtwork']['fanart'].get('fanart', None), Item['ProductionLocations'][0], Item['KodiPremiereDate'], None, Item['KodiFilename'], Item['KodiStackedFilename'], Item['KodiDateCreated'], Item['MediaSources'][0]['Name'], Item['KodiPathId'], Item['KodiPath'], Item['KodiFullPath'], PreserveVersions=PreserveFileState)
             self.SQLs["emby"].update_reference_movie(Item['Id'], Item['PresentationUniqueKey'], Item['LibraryId'])
         else:
             self.SQLs["video"].add_movie(Item['KodiItemId'], Item['KodiFileId'], Item['Name'], Item['Overview'], Item['ShortOverview'], Item['Tagline'], Item['KodiRatingId'], Item['Writers'], Item['KodiArtwork']['poster'], Item['KodiUniqueId'], Item['SortName'], Item['KodiRunTimeTicks'], Item['OfficialRating'], Item['Genre'], Item['Directors'], Item['OriginalTitle'], Item['Studio'], None, Item['KodiArtwork']['fanart'].get('fanart', None), Item['ProductionLocations'][0], Item['KodiFullPath'], Item['KodiPathId'], Item['KodiPremiereDate'], Item['KodiFilename'], Item['KodiDateCreated'], Item["KodiSetId"], Item['KodiStackedFilename'], Item['MediaSources'][0]['Name'])
@@ -123,7 +129,10 @@ class Movies:
 
     def get_version_updates(self, Item, Versions):
         # Match stable server identities before add_streamdata replaces the cached sources.
-        if len(Item['MediaSources']) != len(Versions) or not all('ItemId' in Source for Source in Item['MediaSources']):
+        if len(Item['MediaSources']) != len(Versions):
+            return {}
+        MatchByPath = any(Source.get('ItemId') is None for Source in Item['MediaSources'])
+        if MatchByPath and not Item.get('KodiBlurayFiles'):
             return {}
 
         CachedSources = self.SQLs["emby"].get_mediasource(Item['Id'])
@@ -131,18 +140,28 @@ class Movies:
             return {}
 
         VersionsById = {str(Version[0]): Version for Version in Versions}
-        if {str(Source['ItemId']) for Source in Item['MediaSources']} != set(VersionsById):
+        if not MatchByPath and {str(Source['ItemId']) for Source in Item['MediaSources']} != set(VersionsById):
             return {}
 
         if {Version[1] for Version in Versions} != self.SQLs["video"].get_movieversion_fileids(Item['KodiItemId']):
             return {}
 
+        References = {EmbyId: self.SQLs['emby'].get_item_by_id(EmbyId, 'Movie')
+                      for EmbyId in VersionsById} if MatchByPath else {}
         VersionUpdates = {}
         for Source in Item['MediaSources']:
-            EmbyId = str(Source['ItemId'])
-            Reference = self.SQLs["emby"].get_item_by_id(EmbyId, "Movie")
+            SourcePath = Item['Path'] if Source['Type'] == 'Default' else Source['Path']
+            EmbyId = Source.get('ItemId')
+            if EmbyId is None:
+                Matches = [Id for Id, Reference in References.items() if Reference[5] == SourcePath]
+                if len(Matches) != 1:
+                    return {}
+                EmbyId = Matches[0]
+            EmbyId = str(EmbyId)
+            if EmbyId not in VersionsById:
+                return {}
+            Reference = References.get(EmbyId) or self.SQLs['emby'].get_item_by_id(EmbyId, 'Movie')
             LibraryIds = self.SQLs["emby"].get_LibraryIds_by_EmbyId(EmbyId)
-            SourcePath = Item['Path'] if Source['Type'] == "Default" else Source['Path']
             if Reference[5] != SourcePath or str(Item['LibraryId']) not in {str(Library[0]) for Library in LibraryIds}:
                 return {}
 
@@ -151,6 +170,8 @@ class Movies:
 
             VersionUpdates[Source['Id']] = VersionsById[EmbyId]
 
+        if len({Version[0] for Version in VersionUpdates.values()}) != len(Versions):
+            return {}
         return VersionUpdates
 
     def update_versions(self, Item, VersionUpdates):
@@ -160,6 +181,9 @@ class Movies:
                 VersionItem = copy.Object(Item)
                 VersionItem.update({'KodiFileId': KodiFileId, 'KodiPathId': KodiPathId})
                 common.set_path_filename(VersionItem, self.Library.ServerData['ServerId'], Source)
+                VersionItem['Id'] = EmbyId
+                common.update_bluray_path(VersionItem, self.SQLs, 'Movie')
+                KodiPathId = VersionItem['KodiPathId']
                 self.SQLs["video"].update_movie_version(KodiItemId, KodiFileId, KodiPathId, VersionItem['KodiPath'], VersionItem['KodiFilename'], VersionItem['KodiDateCreated'], VersionItem['KodiStackedFilename'], Source['Name'])
                 self.SQLs["emby"].update_reference_movie(EmbyId, Item['PresentationUniqueKey'], Item['LibraryId'])
 

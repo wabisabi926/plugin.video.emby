@@ -172,6 +172,107 @@ def needs_http_iso_alias(Path, Container):
                for Segment in Segments[:-1])
 
 
+def bluray_source(Path):
+    Path = Path or ''
+    for Prefix in ('bluray://', 'udf://'):
+        if Path.startswith(Prefix):
+            Path = unquote(Path[len(Prefix):].split('/', 1)[0])
+
+    if Path.startswith('http://127.0.0.1:57342/'):
+        from emby import metadata
+        Data = metadata.load_MetaData(urlsplit(Path.split('|', 1)[0]).path, False, False)
+        if len(Data.get('MediaSources', ())) == 1:
+            Path = Data['MediaSources'][0][0]['Path']
+
+    Path = Path.split('|', 1)[0]
+    if Path.startswith('\\\\'):
+        Path = 'smb://' + Path[2:].replace('\\', '/')
+    elif '://' not in Path:
+        Path = Path.replace('\\', '/')
+    Path = Path.rstrip('/')
+    for Suffix in ('/bdmv/index.bdmv', '/bdmv'):
+        if Path.lower().endswith(Suffix):
+            Path = Path[:-len(Suffix)].rstrip('/')
+            break
+    return Path
+
+
+def is_bluray_source(Path, Container):
+    Path = Path or ''
+    return (Container or '').lower() in ('iso', 'bluray') or Path.lower().endswith(
+        ('.iso', '/index.bdmv', '\\index.bdmv')) or needs_http_iso_alias(Path, Container)
+
+
+def sync_bluray_references(Item, SQLs, EmbyType):
+    # New items and ordinary video updates need no Kodi database lookup.
+    if not Item['UpdateItem'] or not Item['KodiItemId']:
+        return
+    if not any(is_bluray_source(Source.get('Path'), Source.get('Container') or Item.get('Container'))
+               for Source in Item['MediaSources']) and not is_bluray_source(Item.get('EmbyFolder'), None):
+        return
+
+    Files = SQLs['video'].get_bluray_files(Item['KodiItemId'], utils.EmbyTypeMapping[EmbyType])
+    if not Files:
+        return
+
+    if EmbyType == 'Movie':
+        References = SQLs['emby'].get_movieversions(Item['Id'])
+    else:
+        References = [(Item['Id'], Item['KodiFileId'], Item['KodiItemId'], Item['KodiPathId'])]
+
+    Paths = {}
+    for EmbyId, _, _, _ in References:
+        Reference = SQLs['emby'].get_item_by_id(EmbyId, EmbyType)
+        Paths[str(EmbyId)] = {bluray_source(Reference[5 if EmbyType == 'Movie' else 6])}
+
+    ItemId = str(Item['Id'])
+    OtherPaths = {Path for EmbyId, SourcePaths in Paths.items() if EmbyId != ItemId
+                  for Path in SourcePaths}
+    CachedPaths = {bluray_source(Source['Path'])
+                   for Source in SQLs['emby'].get_mediasource(Item['Id']).values()}
+    Paths[ItemId].update(CachedPaths - OtherPaths)
+
+    MatchesByEmbyId = {}
+    for KodiFileId, KodiPathId, Path, Filename in Files:
+        SourcePath = bluray_source(Path)
+        Matches = [Reference for Reference in References if SourcePath in Paths[str(Reference[0])]]
+        # An existing file association distinguishes versions that share a disc.
+        Linked = [Reference for Reference in Matches if Reference[1] == KodiFileId]
+        if Linked:
+            Matches = Linked
+        if len(Matches) == 1:
+            EmbyId, OldFileId, _, OldPathId = Matches[0]
+            MatchesByEmbyId.setdefault(EmbyId, []).append(
+                (KodiFileId, KodiPathId, Path, Filename, SourcePath, OldFileId, OldPathId))
+
+    Item['KodiBlurayFiles'] = {}
+    for EmbyId, Matches in MatchesByEmbyId.items():
+        if len(Matches) > 1:
+            Matches = [File for File in Matches if File[0] == File[5]]
+        if not Matches:
+            continue
+        KodiFileId, KodiPathId, Path, Filename, SourcePath, OldFileId, OldPathId = Matches[0]
+        Item['KodiBlurayFiles'][KodiFileId] = (KodiPathId, Path, Filename, SourcePath)
+        if (OldFileId, OldPathId) != (KodiFileId, KodiPathId):
+            SQLs['emby'].update_file_reference(EmbyId, EmbyType, KodiFileId, KodiPathId)
+        if str(EmbyId) == ItemId:
+            Item.update(KodiFileId=KodiFileId, KodiPathId=KodiPathId)
+
+
+def update_bluray_path(Item, SQLs, EmbyType):
+    File = Item.get('KodiBlurayFiles', {}).get(Item['KodiFileId'])
+    if not File:
+        return False
+    if Item['KodiPath'] == File[1]:
+        return True
+
+    # The server replaced this disc source. Move the file without editing its old folder.
+    Item['KodiPathId'] = SQLs['video'].get_add_path(Item['KodiPath'], 'movies' if EmbyType == 'Movie' else None)
+    SQLs['video'].update_file_path(Item['KodiFileId'], Item['KodiPathId'])
+    SQLs['emby'].update_file_reference(Item['Id'], EmbyType, Item['KodiFileId'], Item['KodiPathId'])
+    return False
+
+
 def set_path_filename(Item, ServerId, MediaSource, isDynamic=False):
     Item['KodiFullPath'] = ""
 
@@ -212,6 +313,13 @@ def set_path_filename(Item, ServerId, MediaSource, isDynamic=False):
         Path = Item['Path']
     else:
         Path = ""
+
+    File = Item.get('KodiBlurayFiles', {}).get(Item.get('KodiFileId'))
+    if not isDynamic and File and bluray_source(Path) == File[3]:
+        Item['KodiPathId'], Item['KodiPath'], Item['KodiFilename'], _ = File
+        Folder, Separator, Options = Item['KodiPath'].partition('|')
+        Item['KodiFullPath'] = Folder + Item['KodiFilename'] + Separator + Options
+        return
 
     Item['KodiPath'] = Path
 

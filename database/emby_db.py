@@ -500,6 +500,10 @@ class EmbyDatabase:
         self.cursor.execute("UPDATE Movie SET EmbyPresentationKey = ? WHERE EmbyId = ?", (EmbyPresentationKey, EmbyId))
         self.cursor.execute("INSERT OR IGNORE INTO EmbyLibraryMapping (EmbyLibraryId, EmbyId) VALUES (?, ?)", (EmbyLibraryId, EmbyId))
 
+    def update_file_reference(self, EmbyId, EmbyType, KodiFileId, KodiPathId):
+        self.cursor.execute(f"UPDATE {EmbyType} SET KodiFileId = ?, KodiPathId = ? WHERE EmbyId = ?",
+                            (KodiFileId, KodiPathId, EmbyId))
+
     def update_deleted_musicvideo(self, EmbyId, KodiItemIds, KodiFileIds, KodiPathIds, EmbyLibraryIds):
         self.cursor.execute("UPDATE MusicVideo SET KodiId = ?, KodiFileId = ?, KodiPathId = ?, LibraryIds = ? WHERE EmbyId = ?", (KodiItemIds, KodiFileIds, KodiPathIds, EmbyLibraryIds, EmbyId))
 

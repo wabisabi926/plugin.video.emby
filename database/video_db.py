@@ -231,6 +231,21 @@ class VideoDatabase:
         self.cursor.execute("SELECT idFile FROM videoversion WHERE idMedia = ? AND media_type = ? AND itemType = ?", (KodiItemId, "movie", VideoversionTypes["regular"]))
         return {Data[0] for Data in self.cursor.fetchall()}
 
+    def get_bluray_files(self, KodiItemId, KodiType):
+        if KodiType == 'movie':
+            self.cursor.execute("""SELECT files.idFile, files.idPath, path.strPath, files.strFilename
+                FROM videoversion JOIN files ON files.idFile = videoversion.idFile
+                JOIN path ON path.idPath = files.idPath
+                WHERE videoversion.idMedia = ? AND videoversion.media_type = 'movie'
+                    AND videoversion.itemType = ? AND path.strPath LIKE 'bluray://%'""",
+                                (KodiItemId, VideoversionTypes['regular']))
+        else:
+            self.cursor.execute("""SELECT files.idFile, files.idPath, path.strPath, files.strFilename
+                FROM episode JOIN files ON files.idFile = episode.idFile
+                JOIN path ON path.idPath = files.idPath
+                WHERE episode.idEpisode = ? AND path.strPath LIKE 'bluray://%'""", (KodiItemId,))
+        return self.cursor.fetchall()
+
     def update_movie_version(self, KodiItemId, KodiFileId, KodiPathId, Path, Filename, DateCreated, KodiStackedFilename, VersionName):
         self.update_file(KodiFileId, DateCreated, Filename, KodiStackedFilename)
         self.cursor.execute("UPDATE path SET strPath = ? WHERE idPath = ?", (Path, KodiPathId))
@@ -709,6 +724,9 @@ class VideoDatabase:
             self.cursor.execute("UPDATE files SET strFilename = ?, dateAdded = ? WHERE idFile = ?", (Filename, dateAdded, KodiFileId))
         else:
             self.cursor.execute("UPDATE files SET dateAdded = ? WHERE idFile = ?", (dateAdded, KodiFileId))
+
+    def update_file_path(self, KodiFileId, KodiPathId):
+        self.cursor.execute("UPDATE files SET idPath = ? WHERE idFile = ?", (KodiPathId, KodiFileId))
 
     def create_entry_file(self):
         self.cursor.execute("SELECT coalesce(max(idFile), 0) FROM files")
