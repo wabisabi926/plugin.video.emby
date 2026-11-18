@@ -6,7 +6,7 @@
 
 | 项目 | 说明 |
 |---|---|
-| 当前版本 | 12.5.6 |
+| 当前版本 | 12.5.7 |
 | 上游基线 | 12.5.1（`next-gen-dev-python3`） |
 | 精简基线 | narapeka 12.5.1.1（`319a9849`） |
 | 发布渠道 | [Releases](https://github.com/wabisabi926/plugin.video.emby/releases) |
@@ -20,6 +20,11 @@
 - 不采用：播放列表收藏修复（core 已改用 `get_Records_by_EmbyType("Playlist")` 新实现）；分页默认值（core 无对应 paging 设置）；版本号/changelog（core 12.5.4，不回退到 12.5.2）。
 
 对应提交：`ff4124a0`、`b41c74c8`。
+
+## 12.5.7 修复
+
+- Kodi 22 播放蓝光原盘或 ISO 后，元数据更新不再丢失已建立的文件关联。
+- 原盘未更换时保留默认版本、续播进度和合集归属。
 
 ## 12.5.6 新增
 
